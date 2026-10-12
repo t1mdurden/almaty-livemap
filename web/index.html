@@ -42,6 +42,7 @@
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
   <details style="font-size:11px;color:#666;margin-top:6px"><summary style="cursor:pointer">Источники данных</summary><div id="sources"></div><div id="status"></div></details>
   <details id="placebox" open style="margin-top:10px"><summary style="cursor:pointer"><b>Лучшие микрорайоны</b> при этих весах</summary>
+    <input id="placeq" type="search" placeholder="найти микрорайон…" style="width:100%;box-sizing:border-box;margin:4px 0;padding:4px 6px;font-size:13px;border:1px solid #ccc;border-radius:6px">
     <ol id="places" style="padding-left:18px;margin:6px 0;font-size:13px;max-height:260px;overflow:auto"></ol>
   </details>
   <details id="topbox" style="margin-top:6px"><summary style="cursor:pointer"><b>Топ-20 гексов</b></summary>
@@ -185,6 +186,7 @@ async function init(){
   map.on('mouseleave','hex',()=>map.getCanvas().style.cursor='');
   document.getElementById('status').textContent = `${hexes.features.length} жилых гексов H3 res 9 · ${places.features.length} микрорайонов · ${buildings.features.length} домов`;
   renderTop(); renderPlaces();
+  document.getElementById('placeq').addEventListener('input', renderPlaces);
   let v = 'places'; try{ v = localStorage.getItem(LS+'.view') || 'places'; }catch(e){}
   document.querySelector(`input[name=view][value="${v}"]`).checked = true; app.setView(v);
   app.ready = true;
@@ -224,10 +226,12 @@ app.setView = (v) => {
 function renderPlaces(){
   const el = document.getElementById('places'); if (!el || !app.places) return;
   const rows = app.places.features.map(f=>[scoreOfProps(f.properties), f]).filter(r=>r[0]!==null).sort((a,b)=>b[0]-a[0]);
-  el.innerHTML = rows.slice(0,40).map(([s,f])=>{
+  const q = ((document.getElementById('placeq')||{}).value||'').trim().toLowerCase();
+  app.placeRank = {}; rows.forEach(([s,f],i)=>app.placeRank[f.properties.name]=i+1);
+  el.innerHTML = rows.filter(([s,f])=>!q || f.properties.name.toLowerCase().includes(q)).slice(0, q?200:60).map(([s,f])=>{
     const p = f.properties;
-    return `<li><a href="#" data-lon="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}" style="color:#1a4d8f;text-decoration:none"><b>${Math.round(s*100)}</b> ${p.name}</a> <small style="color:#666">${p.district?p.district.replace(' район',''):''}${p.price_m2?' · '+Math.round(p.price_m2/1000)+' тыс/м²':''}</small></li>`;
-  }).join('');
+    return `<li value="${app.placeRank[p.name]}"><a href="#" data-lon="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}" style="color:#1a4d8f;text-decoration:none"><b>${Math.round(s*100)}</b> ${p.name}</a> <small style="color:#666">${p.district?p.district.replace(' район',''):''}${p.price_m2?' · '+Math.round(p.price_m2/1000)+' тыс/м²':''}</small></li>`;
+  }).join('') || '<li style="list-style:none;color:#666">ничего не найдено среди 145 микрорайонов OSM</li>';
   el.querySelectorAll('a').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); map.flyTo({center:[+a.dataset.lon, +a.dataset.lat], zoom:14.5}); }));
 }
 app.setWeight = (k, w) => {
