@@ -6,7 +6,7 @@ Usage: python -m pipeline.reach plan | car | pt | grid
 - pt:   2GIS Routing /public_transport/2.0, one route per (hex, destination), cached
 - grid: weighted mean minutes per res-8 hex -> spread to res-9 children -> layers/reach.parquet (car_min, pt_min)
 Key: environment variable TWOGIS_KEY only. Never written to disk.
-Endpoints/body shapes follow docs.2gis.com (Distance Matrix, Routing public transport) and are unverified until the first keyed run.
+Body shapes verified against docs.2gis.com on 2026-10-12: Distance Matrix /get_dist_matrix?key&version=2.0 with points/sources/targets, "type":"statistics" + RFC3339 start_time (historical traffic), "transport":"driving"; Routing /public_transport/2.0 with source/target {point{lat,lon}}, transport[], unix start_time.
 """
 import sys, os, json, time, datetime as dt
 import h3, pandas as pd, requests, yaml
@@ -41,10 +41,12 @@ def key():
         raise SystemExit("TWOGIS_KEY is not set in the environment")
     return k
 
-def next_weekday_0830():
-    d = dt.datetime.now() + dt.timedelta(days=1)
+def next_weekday_0830() -> dt.datetime:
+    """Next weekday 08:30 Almaty time (UTC+5) as an aware datetime."""
+    tz = dt.timezone(dt.timedelta(hours=5))
+    d = dt.datetime.now(tz) + dt.timedelta(days=1)
     while d.weekday() >= 5: d += dt.timedelta(days=1)
-    return int(d.replace(hour=8, minute=30, second=0, microsecond=0).timestamp())
+    return d.replace(hour=8, minute=30, second=0, microsecond=0)
 
 def plan():
     o, d = origins(), destinations()
@@ -56,9 +58,9 @@ def plan():
     print(f"Routing public_transport (pt): {pairs} units vs demo cap {DEMO_CAP} → {verdict(pairs)}")
     print(f"cached: car {len(list(CACHE.glob('car_*.json')))}, pt {len(list(CACHE.glob('pt_*.json')))}")
 
-def _post(url, k, body):
+def _post(url, k, body, params=None):
     for attempt in range(4):
-        r = requests.post(url, params={"key": k}, json=body, headers={"User-Agent": UA}, timeout=60)
+        r = requests.post(url, params={"key": k, **(params or {})}, json=body, headers={"User-Agent": UA}, timeout=60)
         if r.status_code == 200:
             return r.json()
         if r.status_code in (429, 500, 502, 503):
@@ -74,13 +76,15 @@ def car():
         if not batch: continue
         body = {"points": [{"lat": la, "lon": lo} for _, la, lo in batch] + [{"lat": x["lat"], "lon": x["lon"]} for x in d],
                 "sources": list(range(len(batch))), "targets": list(range(len(batch), len(batch) + len(d))),
-                "type": "jam", "start_time": t}
-        res = _post(DM_URL, k, body)
+                "transport": "driving", "type": "statistics",
+                "start_time": t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        res = _post(DM_URL, k, body, {"version": "2.0"})
         by_src = {}
         for r in res.get("routes", []):
-            by_src.setdefault(r["source_id"], {})[r["target_id"] - len(batch)] = r.get("duration")
+            if r.get("status", "OK") == "OK":
+                by_src.setdefault(r["source_id"], {})[r["target_id"] - len(batch)] = r.get("duration")
         for j, (c, _, _) in enumerate(batch):
-            (CACHE / f"car_{c}.json").write_text(json.dumps({"h3": c, "sec": by_src.get(j, {}), "t": t}))
+            (CACHE / f"car_{c}.json").write_text(json.dumps({"h3": c, "sec": by_src.get(j, {}), "t": t.isoformat()}))
         log(f"car: {min(i + 25, len(o))}/{len(o)} origins")
         time.sleep(0.3)
 
@@ -92,15 +96,15 @@ def pt():
         if f.exists(): continue
         sec = {}
         for j, x in enumerate(d):
-            body = {"locale": "ru", "source": {"name": "A", "point": {"lat": la, "lon": lo}},
-                    "target": {"name": "B", "point": {"lat": x["lat"], "lon": x["lon"]}},
-                    "transport": ["bus", "trolleybus", "metro", "shuttle_bus", "tram", "light_rail"],
-                    "start_time": t}
+            body = {"locale": "ru", "source": {"point": {"lat": la, "lon": lo}},
+                    "target": {"point": {"lat": x["lat"], "lon": x["lon"]}},
+                    "transport": ["bus", "trolleybus", "metro", "shuttle_bus", "light_rail"],
+                    "start_time": int(t.timestamp()), "max_result_count": 3}
             res = _post(PT_URL, k, body)
             routes = res if isinstance(res, list) else res.get("routes", [])
             durs = [r.get("total_duration") for r in routes if r.get("total_duration")]
             sec[j] = min(durs) if durs else None
-        f.write_text(json.dumps({"h3": c, "sec": sec, "t": t}))
+        f.write_text(json.dumps({"h3": c, "sec": sec, "t": t.isoformat()}))
         if n % 25 == 0: log(f"pt: {n}/{len(o)}")
         time.sleep(0.2)
 
@@ -121,5 +125,20 @@ def grid():
     out.to_parquet(LAYERS / "reach.parquet", index=False)
     log(f"reach: car coverage {out.car_min.notna().mean():.0%}, pt coverage {out.pt_min.notna().mean():.0%}")
 
+def probe():
+    """Spend 1 unit on each API to verify request/response shapes before the full run."""
+    k, d = key(), destinations()
+    la, lo = 43.2392, 76.9468   # м. Абай
+    t = next_weekday_0830()
+    body = {"points": [{"lat": la, "lon": lo}, {"lat": d[0]["lat"], "lon": d[0]["lon"]}], "sources": [0], "targets": [1],
+            "transport": "driving", "type": "statistics", "start_time": t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    res = _post(DM_URL, k, body, {"version": "2.0"})
+    print("DM:", json.dumps(res)[:300])
+    body = {"locale": "ru", "source": {"point": {"lat": la, "lon": lo}}, "target": {"point": {"lat": d[0]["lat"], "lon": d[0]["lon"]}},
+            "transport": ["bus", "trolleybus", "metro", "shuttle_bus", "light_rail"], "start_time": int(t.timestamp()), "max_result_count": 3}
+    res = _post(PT_URL, k, body)
+    routes = res if isinstance(res, list) else res.get("routes", [])
+    print("PT:", type(res).__name__, len(routes), "routes; total_duration:", [r.get("total_duration") for r in routes][:3])
+
 if __name__ == "__main__":
-    {"plan": plan, "car": car, "pt": pt, "grid": grid}[sys.argv[1] if len(sys.argv) > 1 else "plan"]()
+    {"plan": plan, "car": car, "pt": pt, "grid": grid, "probe": probe}[sys.argv[1] if len(sys.argv) > 1 else "plan"]()

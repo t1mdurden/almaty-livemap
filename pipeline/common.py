@@ -14,7 +14,7 @@ for p in (RAW, OUT, LAYERS):
 # south, west, north, east — Almaty city + a margin
 BBOX = (43.15, 76.75, 43.42, 77.15)
 H3_RES = 9
-UA = "almaty-livemap/0.1 (personal research; timamikhailov@gmail.com)"
+UA = "almaty-livemap/0.1 (personal research; github.com/t1mdurden/almaty-livemap)"
 OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
