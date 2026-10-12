@@ -38,20 +38,22 @@ def main():
         if not g: continue
         lat = sum(p["lat"] for p in g) / len(g); lon = sum(p["lon"] for p in g) / len(g)
         apt_hex.add(h3.latlng_to_cell(lat, lon, 9))
-    # private-house areas (частный сектор): centroids only, a hex with ≥3 houses counts as built
+    # any residential-looking building (building=yes included, non-residential types excluded): a hex with ≥5 counts as built
     from .common import overpass, bbox_str
-    hd = overpass(f'[out:json][timeout:180][bbox:{bbox_str()}];(way["building"~"^(house|detached|residential|dormitory|terrace|semidetached_house)$"];);out center;', cache="houses_center.json")
+    from .houses import NONRES
+    hd = overpass(f'[out:json][timeout:300][bbox:{bbox_str()}];(way["building"];);out center tags;', cache="all_buildings_center.json")
     house_n = {}
     for e in hd["elements"]:
-        c = e.get("center")
-        if c: k = h3.latlng_to_cell(c["lat"], c["lon"], 9); house_n[k] = house_n.get(k, 0) + 1
-    log(f"house centroids: {len(hd['elements'])}, hexes with ≥3 houses: {sum(1 for v in house_n.values() if v >= 3)}")
+        c = e.get("center"); t = e.get("tags", {})
+        if not c or t.get("building") in NONRES or t.get("amenity") or t.get("shop") or t.get("office"): continue
+        k = h3.latlng_to_cell(c["lat"], c["lon"], 9); house_n[k] = house_n.get(k, 0) + 1
+    log(f"residential building centroids: {sum(house_n.values())}, hexes with ≥5: {sum(1 for v in house_n.values() if v >= 5)}")
     grid = pd.read_parquet(OUT / "grid.parquet")
     built = []
     for r in grid.itertuples():
         pt = Point(r.lon, r.lat)
         inside = any(polys[i].contains(pt) for i in tree.query(pt))
-        built.append(int(inside or r.h3 in apt_hex or house_n.get(r.h3, 0) >= 3))
+        built.append(int(inside or r.h3 in apt_hex or house_n.get(r.h3, 0) >= 5))
     grid["built"] = built
     grid[["h3", "built"]].to_parquet(LAYERS / "mask.parquet", index=False)
     log(f"built hexes: {sum(built)} of {len(grid)} ({sum(built)/len(grid):.0%}); apartment hexes {len(apt_hex)}")

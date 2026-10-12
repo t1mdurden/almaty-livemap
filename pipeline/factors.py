@@ -5,6 +5,7 @@ FACTORS = {
     "pm25_winter":   {"label": "PM2.5 зимой", "unit": "мкг/м³", "better": "low", "period": "airkaz.org, зимы 2017–2020"},
     "car_min":       {"label": "На авто до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "pt_min":        {"label": "Общественным транспортом до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
+    "car_ev_min":    {"label": "На авто из моих точек домой, будни 18:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "transit_proxy": {"label": "Маршрутов автобуса/троллейбуса в 400 м", "unit": "маршр.", "better": "high", "period": "OSM, 2026-10"},
     "cat15":         {"label": "Инфраструктура в 1 км", "unit": "из 6", "better": "high", "period": "OSM, 2026-10"},
 }

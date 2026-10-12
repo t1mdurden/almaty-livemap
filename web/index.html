@@ -17,6 +17,19 @@
   .f input[type=range]{width:100%}
   .legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#444}
   .legend .bar{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#d73027,#fee08b,#1a9850)}
+  #cmp table{border-collapse:collapse;width:100%}
+  #cmp td,#cmp th{padding:3px 6px 3px 0;border-top:1px solid #eee;text-align:right;white-space:nowrap}
+  #cmp td:first-child,#cmp th:first-child{text-align:left;white-space:normal}
+  #cmp .win{background:#e8f5e9;font-weight:600}
+  @media (max-width:900px){#cmp{position:static;width:auto;max-width:none;margin:0 0 8px}}
+  .tab{border:0;background:none;padding:6px 10px;font:inherit;font-size:13px;color:#666;cursor:pointer;border-bottom:2px solid transparent}
+  .tab.on{color:#1b1b1b;border-bottom-color:#1a4d8f;font-weight:600}
+  #tab-about h2{font-size:13px;margin:12px 0 4px}
+  #tab-about table{border-collapse:collapse;width:100%;font-size:12px}
+  #tab-about td{padding:4px 6px 4px 0;border-top:1px solid #eee;vertical-align:top}
+  #tab-about td:first-child{font-weight:600;white-space:nowrap}
+  #tab-about ul{padding-left:16px;margin:4px 0}
+  #tab-about li{margin:3px 0}
   .popup{font-size:12px;line-height:1.3;max-width:100%}
   .popup table{border-collapse:collapse;margin-top:4px;width:100%;table-layout:auto}
   .popup th{font-weight:500;color:#666;text-align:right;padding:0 0 2px 8px;white-space:nowrap}
@@ -30,13 +43,21 @@
 </head>
 <body>
 <div id="map"></div>
+<div id="cmp" style="display:none;position:absolute;top:12px;right:52px;width:420px;max-width:calc(100% - 340px);max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:10px 14px;box-sizing:border-box;font-size:12px"></div>
 <div id="panel">
   <h1>Где в Алматы удобно жить</h1>
-  <div style="display:flex;gap:6px;margin:4px 0 8px;font-size:13px">
+  <div style="display:flex;gap:4px;margin-bottom:8px;border-bottom:1px solid #e5e5e5">
+    <button class="tab on" data-tab="map">Карта</button><button class="tab" data-tab="about">О данных</button>
+  </div>
+  <div id="tab-about" style="display:none;font-size:13px"></div>
+  <div id="tab-map">
+  <div style="display:flex;gap:6px;margin:4px 0 8px;font-size:13px;flex-wrap:wrap;align-items:center">
     <label><input type="radio" name="view" value="places" checked> Микрорайоны</label>
     <label><input type="radio" name="view" value="hex"> Гексы</label>
     <label title="от зума 14"><input type="checkbox" id="bld" checked> Дома</label>
+    <button id="cmpbtn" style="margin-left:auto;font:inherit;font-size:12px;padding:3px 8px;border:1px solid #1a4d8f;color:#1a4d8f;background:#fff;border-radius:6px;cursor:pointer">Сравнить две точки</button>
   </div>
+  <div id="cmphint" style="display:none;font-size:12px;color:#8a4b00;background:#fff6e5;border-radius:6px;padding:4px 8px;margin-bottom:6px"></div>
   <div style="font-size:12px;color:#555;margin:2px 0 4px"><b>Важность факторов.</b> Тяни вправо — фактор сильнее влияет на балл, влево до нуля — не учитывается.</div>
   <div id="factors"></div>
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
@@ -49,6 +70,7 @@
     <ol id="top" style="padding-left:18px;margin:6px 0;font-size:13px"></ol>
     <div style="font-size:11px;color:#666">Только гексы с населением ≥ 100 (Kontur 2023). Цена м² — медиана по району (krisha, см. дату в config/prices.yaml).</div>
   </details>
+  </div>
 </div>
 <script>
 const DATA = '../data/out/';
@@ -150,16 +172,21 @@ async function init(){
     paint:{'fill-color': scoreColor, 'fill-opacity': 0.85, 'fill-outline-color':'rgba(0,0,0,0.35)'}});
   map.addSource('houses', {type:'geojson', data:{type:'FeatureCollection', features:[]}});
   map.addLayer({id:'houses', type:'circle', source:'houses', minzoom:14,
-    paint:{'circle-color': scoreColor, 'circle-radius': ['interpolate',['linear'],['zoom'], 14, 2.5, 17, 7], 'circle-opacity':0.9, 'circle-stroke-color':'rgba(0,0,0,0.4)', 'circle-stroke-width':0.5}});
+    paint:{'circle-color': scoreColor, 'circle-radius': ['interpolate',['linear'],['zoom'], 14, 3.5, 16, 6, 18, 11], 'circle-opacity':0.9, 'circle-stroke-color':'rgba(0,0,0,0.4)', 'circle-stroke-width':0.5}});
+  // houses come in ~90 chunks (H3 res 7); only chunks under the viewport are fetched, from zoom 13.5
+  app.houses = {type:'FeatureCollection', features:[]}; app.houseChunks = {}; app.houseIndex = null;
   const loadHouses = async () => {
-    if (app.houses || app._loadingHouses) return; app._loadingHouses = true;
-    document.getElementById('status').textContent += ' · загружаю дома…';
-    const fc = await fetch(DATA+'houses.geojson'+BUST).then(r=>r.json()).catch(()=>null);
-    if (!fc) return;
-    app.houses = fc; rescoreBuildings();
+    if (map.getZoom() < 13.5) return;
+    if (!app.houseIndex) app.houseIndex = await fetch(DATA+'houses/index.json'+BUST).then(r=>r.json()).catch(()=>[]);
+    const b = map.getBounds(); const w=b.getWest(), s_=b.getSouth(), e=b.getEast(), n=b.getNorth();
+    const need = app.houseIndex.filter(c=>!(c.bbox[2]<w || c.bbox[0]>e || c.bbox[3]<s_ || c.bbox[1]>n) && !app.houseChunks[c.id]);
+    if (!need.length) return;
+    for (const c of need) app.houseChunks[c.id] = 'loading';
+    const got = await Promise.all(need.map(c=>fetch(DATA+'houses/'+c.id+'.geojson'+BUST).then(r=>r.json()).then(fc=>{ app.houseChunks[c.id]=fc; return fc; }).catch(()=>{ delete app.houseChunks[c.id]; return null; })));
+    for (const fc of got) if (fc) app.houses.features.push(...fc.features);
+    rescoreBuildings();
   };
-  map.on('zoomend', ()=>{ if (map.getZoom() >= 13.5) loadHouses(); });
-  if (map.getZoom() >= 13.5) loadHouses();
+  map.on('moveend', loadHouses); loadHouses();
   map.addSource('places', {type:'geojson', data:places});
   map.addLayer({id:'places', type:'circle', source:'places', maxzoom:15,
     paint:{'circle-color': colorExpr(), 'circle-opacity':0.85, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5,
@@ -169,7 +196,41 @@ async function init(){
     paint:{'text-color':'#222', 'text-halo-color':'#fff', 'text-halo-width':1.2}});
   document.querySelectorAll('input[name=view]').forEach(r=>r.addEventListener('change', e=>app.setView(e.target.value)));
   document.getElementById('bld').addEventListener('change', e=>{ for (const L of ['bld','houses']) map.setLayoutProperty(L,'visibility', e.target.checked?'visible':'none'); });
+  // --- compare mode: the next two clicks pick A and B, then a side-by-side table that follows the sliders
+  app.cmp = {on:false, pts:[]};
+  const cmpbtn = document.getElementById('cmpbtn'), cmphint = document.getElementById('cmphint'), cmpEl = document.getElementById('cmp');
+  cmpbtn.addEventListener('click', ()=>{
+    app.cmp = {on:true, pts:[]}; cmpEl.style.display='none';
+    cmphint.style.display=''; cmphint.textContent = 'Режим сравнения: кликни первую точку на карте (микрорайон, дом или гекс)';
+  });
+  window.renderCompare = () => {
+    const [A, B] = app.cmp.pts; if (!A || !B) return;
+    const sa = scoreOfProps(A.p), sb = scoreOfProps(B.p);
+    const rows = Object.entries(factors).map(([k,m])=>{
+      const va = A.p[k], vb = B.p[k], pa = A.p[k+'_p'], pb = B.p[k+'_p'];
+      const f = v => (v===null||v===undefined) ? '—' : (+v).toFixed(v>=100?0:1)+' '+m.unit;
+      const aw = (pa!==null&&pa!==undefined&&pb!==null&&pb!==undefined) ? (pa>pb ? 'a' : pb>pa ? 'b' : '') : '';
+      return `<tr><td>${SHORT[k]||m.label}</td><td class="${aw==='a'?'win':''}">${f(va)}</td><td class="${aw==='b'?'win':''}">${f(vb)}</td></tr>`;
+    }).join('');
+    const price = p => p.price_m2 ? Math.round(p.price_m2/1000)+' тыс ₸/м²' : '—';
+    cmpEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><b>Сравнение</b><button id="cmpclose" style="border:0;background:none;font-size:16px;cursor:pointer">×</button></div>
+      <table><tr><th></th><th>${A.title}</th><th>${B.title}</th></tr>
+      <tr><td><b>Балл</b></td><td class="${sa>sb?'win':''}"><b>${sa===null?'—':Math.round(sa*100)}</b></td><td class="${sb>sa?'win':''}"><b>${sb===null?'—':Math.round(sb*100)}</b></td></tr>
+      <tr><td>Район · цена м²</td><td>${(A.p.district||'').replace(' район','')} · ${price(A.p)}</td><td>${(B.p.district||'').replace(' район','')} · ${price(B.p)}</td></tr>
+      ${rows}</table>
+      <div style="color:#666;margin-top:6px">Зелёным — где показатель лучше. Таблица пересчитывается при движении ползунков. <a href="#" id="cmpagain" style="color:#1a4d8f">Выбрать другие точки</a></div>`;
+    cmpEl.style.display='';
+    document.getElementById('cmpclose').onclick = ()=>{ cmpEl.style.display='none'; app.cmp={on:false,pts:[]}; };
+    document.getElementById('cmpagain').onclick = (e)=>{ e.preventDefault(); cmpbtn.click(); };
+  };
+  const pickForCompare = (lngLat, title, p) => {
+    app.cmp.pts.push({title, p, lngLat});
+    new maplibregl.Marker({color: app.cmp.pts.length===1 ? '#1a4d8f' : '#c62828'}).setLngLat(lngLat).addTo(map);
+    if (app.cmp.pts.length === 1) { cmphint.textContent = `A: ${title}. Теперь кликни вторую точку`; return true; }
+    app.cmp.on = false; cmphint.style.display='none'; renderCompare(); return true;
+  };
   window.openCard = (lngLat, title, p) => {        // one card at a time; re-rendered live when weights move
+    if (app.cmp.on) { pickForCompare(lngLat, title, p); return; }
     const render = () => { const s = scoreOfProps(p); return `<div class="popup"><b>${title}</b> · балл ${s===null?'—':Math.round(s*100)}${p.district?'<br><small>'+p.district+(p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':'')+'</small>':''}${factorTable(p)}</div>`; };
     if (app.card) app.card.remove();
     app.card = new maplibregl.Popup({maxWidth:'440px'}).setLngLat(lngLat).setHTML(render()).addTo(map);
@@ -219,6 +280,12 @@ async function init(){
   document.getElementById('status').textContent = `${hexes.features.length} жилых гексов H3 res 9 · ${places.features.length} микрорайонов · ${buildings.features.length} домов`;
   renderTop(); renderPlaces();
   document.getElementById('placeq').addEventListener('input', renderPlaces);
+  renderAbout(hexes, places, buildings, factors);
+  document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x===b));
+    document.getElementById('tab-map').style.display = b.dataset.tab==='map' ? '' : 'none';
+    document.getElementById('tab-about').style.display = b.dataset.tab==='about' ? '' : 'none';
+  }));
   let v = 'places'; try{ v = localStorage.getItem(LS+'.view') || 'places'; }catch(e){}
   document.querySelector(`input[name=view][value="${v}"]`).checked = true; app.setView(v);
   app.ready = true;
@@ -249,6 +316,42 @@ function renderTop(){
 let hexCentre = {};
 function h3ToLatLng(h){ return hexCentre[h] || [43.24, 76.92]; }
 
+function renderAbout(hexes, places, buildings, factors){
+  const cov = k => { const n = hexes.features.filter(f=>f.properties[k]!==null && f.properties[k]!==undefined).length; return Math.round(100*n/hexes.features.length)+'%'; };
+  const rows = [
+    ['Метро пешком', 'OpenStreetMap, 12 станций (окт 2026)', 'Прямая × 1.3 при 5 км/ч от центра гекса; у домов — от самого дома', cov('metro_min')],
+    ['Уличная преступность', 'Комитет правовой статистики (gis.kgp.kz), 84 624 правонарушения 2023–2025; население Kontur 2023', 'Кражи, грабежи, разбой, хулиганство, вред здоровью, убийства, вымогательство — на 1000 жителей в год, по ячейке 0.7 км². Мошенничество исключено (онлайн). У рынков показатель взлетает: мало жителей, много краж', cov('crime_rate')],
+    ['Чистый воздух зимой', 'airkaz.org: архив суточных средних 22 датчиков, зимы 2017–2020', 'Средний PM2.5 ноябрь–февраль, интерполяция до 4 км от датчика. Данные пятилетней давности: градиент верх/низ верный, абсолютные значения — нет. Живых датчиков сейчас 4', cov('pm25_winter')],
+    ['На авто до центра в 8:30', '2GIS Distance Matrix, статистика пробок, ближайший будний день (окт 2026)', 'От центра каждой населённой ячейки 0.7 км² до Абая/Назарбаева. Одна точка назначения — лимит демо-ключа', cov('car_min')],
+    ['На автобусе/метро до центра в 8:30', '2GIS, маршрутизация ОТ с расписанием (окт 2026)', 'То же, общественным транспортом с пешими подходами', cov('pt_min')],
+    ['Остановки и маршруты рядом', 'OpenStreetMap, 157 маршрутов (окт 2026)', 'Число разных маршрутов с остановкой в 400 м + бонус за метро в 800 м. OSM знает остановки только у части маршрутов — слой слабый', cov('transit_proxy')],
+    ['Магазины, школы, аптеки, парки', 'OpenStreetMap (окт 2026): продуктовые 1271, аптеки 388, школы 306, детсады 226, клиники 366, парки/площадки 1483', 'Сколько из 6 категорий есть в 1 км', cov('cat15')],
+    ['Цена м²', 'krisha.kz, медиана по ~100 объявлениям на район, 13 окт 2026', 'Только по 8 районам — грубо. По домам цены нет', '100%'],
+    ['Жилая застройка (маска)', 'OSM: жилой landuse, многоквартирные дома, ≥5 жилых зданий в ячейке', `${hexes.features.length} ячеек по 0.1 км² из 5582 в границах города; горы, степь, промзоны и аэропорт исключены`, '—'],
+    ['Микрорайоны', 'OSM place=neighbourhood/quarter/suburb', `${places.features.length} именованных; ячейка относится к полигону микрорайона или ближайшей точке ≤ 900 м`, '—'],
+    ['Дома', 'OSM: контуры многоквартирных (' + buildings.features.length + ') и точки всех жилых зданий (~120 тыс.)', 'Балл дома = балл его ячейки, кроме метро — оно считается от самого дома. Адрес и этажность — если есть в OSM', '—'],
+  ];
+  const ideas = [
+    'Свои точки назначения (работа, родители, школа) вместо одного центра — нужен платный пакет 2GIS (10 000 расчётов ≈ 6 700 ₽) или второй демо-ключ',
+    'Свежий воздух: логировать текущие датчики airkaz каждый час всю зиму (скрипт готов, ops/) и датчики Almaty Air Initiative, если дадут выгрузку',
+    'Цена м² по дому/ЖК вместо района — из объявлений krisha с координатами (разрешение есть), плюс год постройки, тип дома, застройщик',
+    'Шум: близость к магистралям, ж/д и глиссаде аэропорта из OSM',
+    'Уклон и высота: SRTM — зимой наверху лёд и пешком тяжелее, летом прохладнее',
+    'Планы метро/BRT/развязок — вручную нарисованный слой из новостей акимата',
+    'ДТП: слой «опасные перекрёстки» из того же ArcGIS (77 тыс. ДТП)',
+    'Сейсмика и сели — карты микрорайонирования, если найдутся в машинном виде',
+    'Школы по рейтингу (ЕНТ/олимпиады) вместо «есть школа в 1 км»',
+    'Отопление: ТЭЦ или котельная, газ — из открытых данных алматинских сетей, если есть',
+  ];
+  document.getElementById('tab-about').innerHTML = `
+    <p style="margin:6px 0">Балл ячейки — взвешенное среднее перцентилей: для каждого фактора считается, какая доля жилых ячеек города хуже, а ползунки задают веса. 50 — середина города, 80 — лучше четырёх пятых.</p>
+    <h2>Слои</h2>
+    <table><tr><td></td><td style="font-weight:600">Источник, дата</td><td style="font-weight:600">Что считается, оговорки</td><td style="font-weight:600">Покрытие</td></tr>
+    ${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</table>
+    <h2>Что можно добавить</h2><ul>${ideas.map(i=>`<li>${i}</li>`).join('')}</ul>
+    <p style="font-size:11px;color:#666">Код и пайплайн: github.com/t1mdurden/almaty-livemap (приватный). Подробности источников — docs/research/sources.md.</p>`;
+}
+
 app.setView = (v) => {
   app.view = v;
   if (map.getLayer('hex')) map.setLayoutProperty('hex','visibility', v==='hex'?'visible':'none');
@@ -270,6 +373,7 @@ app.setWeight = (k, w) => {
   app.weights[k] = w; saveWeights(); app.idle = false;
   if (map.getLayer('places')) map.setPaintProperty('places', 'circle-color', colorExpr());
   if (app.card && app.card.rerender) app.card.rerender();
+  if (window.renderCompare && app.cmp && app.cmp.pts.length===2) renderCompare();
   clearTimeout(app._t); app._t = setTimeout(()=>{ renderTop(); renderPlaces(); if (window.rescoreBuildings) rescoreBuildings(); }, 200);
   const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
   const ww = inp && inp.parentElement.querySelector('.w'); if (ww && window.weightWord) ww.textContent = weightWord(w);

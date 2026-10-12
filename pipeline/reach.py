@@ -60,7 +60,8 @@ def plan():
     print(f"with ONE destination (work only): {len(o)} units per API → {'fits the demo key' if len(o) <= DEMO_CAP else 'still over the demo cap'}")
     print(f"Distance Matrix (car): {pairs} units vs demo cap {DEMO_CAP} → {verdict(pairs)}")
     print(f"Routing public_transport (pt): {pairs} units vs demo cap {DEMO_CAP} → {verdict(pairs)}")
-    print(f"cached: car {len(list(CACHE.glob('car_*.json')))}, pt {len(list(CACHE.glob('pt_*.json')))}")
+    print(f"cached: car {len([f for f in CACHE.glob('car_*.json') if not f.name.startswith('car_ev_')])}, pt {len(list(CACHE.glob('pt_*.json')))}, car evening {len(list(CACHE.glob('car_ev_*.json')))}")
+    print(f"evening direction (centre → cell, 18:30) costs another {pairs} Distance Matrix units")
 
 def _post(url, k, body, params=None):
     last = None
@@ -115,6 +116,29 @@ def pt():
         if n % 25 == 0: log(f"pt: {n}/{len(o)}")
         time.sleep(0.6)
 
+def car_evening():
+    """Reverse direction: from the destinations back to each cell at 18:30 on a weekday (evening jams).
+    Same budget as `car` (1 unit per pair). Cached as car_ev_<h3>.json; layers get car_ev_min."""
+    k, o, d = key(), origins(), destinations()
+    t = next_weekday_0830().replace(hour=18, minute=30)
+    B = 10
+    for i in range(0, len(o), B):
+        batch = [x for x in o[i:i + B] if not (CACHE / f"car_ev_{x[0]}.json").exists()]
+        if not batch: continue
+        body = {"points": [{"lat": x["lat"], "lon": x["lon"]} for x in d] + [{"lat": la, "lon": lo} for _, la, lo in batch],
+                "sources": list(range(len(d))), "targets": list(range(len(d), len(d) + len(batch))),
+                "transport": "driving", "type": "statistics",
+                "start_time": t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        res = _post(DM_URL, k, body, {"version": "2.0"})
+        by_tgt = {}
+        for r in res.get("routes", []):
+            if r.get("status", "OK") == "OK":
+                by_tgt.setdefault(r["target_id"] - len(d), {})[r["source_id"]] = r.get("duration")
+        for j, (c, _, _) in enumerate(batch):
+            (CACHE / f"car_ev_{c}.json").write_text(json.dumps({"h3": c, "sec": by_tgt.get(j, {}), "t": t.isoformat()}))
+        log(f"car evening: {min(i + B, len(o))}/{len(o)}")
+        time.sleep(0.3)
+
 def pt_dm(limit=None):
     """PT travel time via Distance Matrix (transport=public_transport) — a second budget when /public_transport/2.0 returns 429."""
     k, o, d = key(), origins(), destinations()
@@ -140,8 +164,9 @@ def pt_dm(limit=None):
 def grid():
     d = destinations(); w = [x.get("weight", 1) for x in d]
     rows = {}
-    for mode in ("car", "pt"):
+    for mode in ("car", "pt", "car_ev"):
         for f in CACHE.glob(f"{mode}_*.json"):
+            if mode == "car" and f.name.startswith("car_ev_"): continue
             j = json.loads(f.read_text())
             secs = [j["sec"].get(str(i)) for i in range(len(d))]
             if any(s is None for s in secs): continue
@@ -149,8 +174,9 @@ def grid():
     g = pd.read_parquet(OUT / "grid.parquet")
     g["h3_r8"] = [h3.cell_to_parent(c, RES) for c in g.h3]
     out = g[["h3"]].copy()
-    for col in ("car_min", "pt_min"):
+    for col in ("car_min", "pt_min", "car_ev_min"):
         out[col] = g.h3_r8.map({k: v.get(col) for k, v in rows.items()})
+    if out.car_ev_min.notna().sum() == 0: out = out.drop(columns=["car_ev_min"])
     out.to_parquet(LAYERS / "reach.parquet", index=False)
     log(f"reach: car coverage {out.car_min.notna().mean():.0%}, pt coverage {out.pt_min.notna().mean():.0%}")
 
@@ -170,4 +196,4 @@ def probe():
     print("PT:", type(res).__name__, len(routes), "routes; total_duration:", [r.get("total_duration") for r in routes][:3])
 
 if __name__ == "__main__":
-    {"plan": plan, "car": car, "pt": pt, "pt-dm": lambda: pt_dm(), "grid": grid, "probe": probe}[sys.argv[1] if len(sys.argv) > 1 else "plan"]()
+    {"plan": plan, "car": car, "car-evening": car_evening, "pt": pt, "pt-dm": lambda: pt_dm(), "grid": grid, "probe": probe}[sys.argv[1] if len(sys.argv) > 1 else "plan"]()
