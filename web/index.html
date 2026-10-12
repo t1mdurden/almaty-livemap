@@ -11,6 +11,10 @@
   #map{position:absolute;inset:0}
   #panel{position:absolute;top:12px;left:12px;width:300px;max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:12px 14px;box-sizing:border-box}
   #panel h1{font-size:15px;margin:0 0 8px}
+  #panel.wide{width:780px;max-width:calc(100% - 24px)}
+  #tab-about td:first-child{white-space:normal;width:17%}
+  #tab-about td:nth-child(2){width:30%}
+  #tab-about td:nth-child(4){white-space:nowrap}
   .f{margin:8px 0}
   .f label{display:flex;justify-content:space-between;gap:8px}
   .f small{color:#666}
@@ -27,7 +31,7 @@
   #tab-about h2{font-size:13px;margin:12px 0 4px}
   #tab-about table{border-collapse:collapse;width:100%;font-size:12px}
   #tab-about td{padding:4px 6px 4px 0;border-top:1px solid #eee;vertical-align:top}
-  #tab-about td:first-child{font-weight:600;white-space:nowrap}
+  #tab-about td:first-child{font-weight:600}
   #tab-about ul{padding-left:16px;margin:4px 0}
   #tab-about li{margin:3px 0}
   .popup{font-size:12px;line-height:1.3;max-width:100%}
@@ -43,7 +47,9 @@
 </head>
 <body>
 <div id="map"></div>
-<div id="cmp" style="display:none;position:absolute;top:12px;right:52px;width:420px;max-width:calc(100% - 340px);max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:10px 14px;box-sizing:border-box;font-size:12px"></div>
+<button id="cmpbtn" style="position:absolute;top:12px;right:52px;z-index:2;font:inherit;font-size:13px;padding:6px 12px;border:1px solid #1a4d8f;color:#1a4d8f;background:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)">⇄ Сравнить две точки</button>
+<div id="cmphint" style="display:none;position:absolute;top:52px;right:52px;z-index:2;max-width:320px;font-size:12px;color:#8a4b00;background:#fff6e5;border-radius:8px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.15)"></div>
+<div id="cmp" style="display:none;position:absolute;top:52px;right:52px;width:420px;max-width:calc(100% - 340px);max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:10px 14px;box-sizing:border-box;font-size:12px"></div>
 <div id="panel">
   <h1>Где в Алматы удобно жить</h1>
   <div style="display:flex;gap:4px;margin-bottom:8px;border-bottom:1px solid #e5e5e5">
@@ -55,9 +61,8 @@
     <label><input type="radio" name="view" value="places" checked> Микрорайоны</label>
     <label><input type="radio" name="view" value="hex"> Гексы</label>
     <label title="от зума 14"><input type="checkbox" id="bld" checked> Дома</label>
-    <button id="cmpbtn" style="margin-left:auto;font:inherit;font-size:12px;padding:3px 8px;border:1px solid #1a4d8f;color:#1a4d8f;background:#fff;border-radius:6px;cursor:pointer">Сравнить две точки</button>
   </div>
-  <div id="cmphint" style="display:none;font-size:12px;color:#8a4b00;background:#fff6e5;border-radius:6px;padding:4px 8px;margin-bottom:6px"></div>
+
   <div style="font-size:12px;color:#555;margin:2px 0 4px"><b>Важность факторов.</b> Тяни вправо — фактор сильнее влияет на балл, влево до нуля — не учитывается.</div>
   <div id="factors"></div>
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
@@ -285,6 +290,7 @@ async function init(){
     document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x===b));
     document.getElementById('tab-map').style.display = b.dataset.tab==='map' ? '' : 'none';
     document.getElementById('tab-about').style.display = b.dataset.tab==='about' ? '' : 'none';
+    document.getElementById('panel').classList.toggle('wide', b.dataset.tab==='about');
   }));
   let v = 'places'; try{ v = localStorage.getItem(LS+'.view') || 'places'; }catch(e){}
   document.querySelector(`input[name=view][value="${v}"]`).checked = true; app.setView(v);
