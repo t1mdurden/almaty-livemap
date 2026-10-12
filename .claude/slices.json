@@ -146,7 +146,8 @@
           "replaced_by": [
             "s2-r04b"
           ],
-          "dropped_by": "assistant 2026-10-12: OSM building footprints for all of Almaty are a 100 MB Overpass pull; Kontur population (CC BY, 15 MB, H3 res 8) is the right denominator"
+          "dropped_by": "assistant, 2026-10-12",
+          "dropped_why": "OSM building footprints for all of Almaty are a 100 MB Overpass pull; Kontur population (CC BY, 15 MB, H3 res 8) is the right denominator — successor s2-r04b"
         },
         {
           "id": "s2-r05",
