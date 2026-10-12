@@ -2,9 +2,9 @@
 
 **Goal.** Личная карта Алматы на гексах H3 с ползунками весов факторов (docs/prd.md). Ledger: `.claude/slices.json` (6 слайсов, 30 строк). Spine: compound-v:get-shit-done.
 
-**Next.** s1-r01 — `pipeline/grid.py`: граница Алматы из OSM → H3 res 9 → data/out/grid.parquet.
+**Next.** s2-r01 — `pipeline/crime.py fetch`: 84 624 точек 2023–2025 из gis.kgp.kz постранично в data/raw/crime.parquet.
 
-**Proof command.** `bash scripts/check-s1.sh` (пока не написан).
+**Proof command.** `bash scripts/check-s1.sh` → s1 CHECK PASSED (2026-10-12).
 
 **Done.** 2026-10-12: исследование источников (docs/research/sources.md), ledger, uv-окружение (python 3.12, h3 4.5, geopandas 1.2).
 

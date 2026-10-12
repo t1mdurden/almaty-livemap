@@ -1,0 +1,8 @@
+{
+ "metro_min": {
+  "label": "Пешком до метро",
+  "unit": "мин",
+  "better": "low",
+  "period": "OSM, 2026-10"
+ }
+}

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Almaty livemap</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  html,body{margin:0;height:100%;font:14px/1.4 -apple-system,system-ui,sans-serif;background:#f4f4f2;color:#1b1b1b}
+  #map{position:absolute;inset:0}
+  #panel{position:absolute;top:12px;left:12px;width:300px;max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:12px 14px;box-sizing:border-box}
+  #panel h1{font-size:15px;margin:0 0 8px}
+  .f{margin:8px 0}
+  .f label{display:flex;justify-content:space-between;gap:8px}
+  .f small{color:#666}
+  .f input[type=range]{width:100%}
+  .legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#444}
+  .legend .bar{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#d73027,#fee08b,#1a9850)}
+  .popup td{padding:1px 6px 1px 0;white-space:nowrap}
+  .popup td.n{text-align:right;font-variant-numeric:tabular-nums}
+  @media (max-width:600px){#panel{width:calc(100% - 24px)}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>Где в Алматы удобно жить</h1>
+  <div id="factors"></div>
+  <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
+  <div id="status" style="font-size:12px;color:#666;margin-top:6px"></div>
+</div>
+<script>
+const DATA = '../data/out/';
+const LS = 'almaty-livemap.weights.v1';
+const app = window.__app = {ready:false, weights:{}, factors:{}, idle:false};
+
+function loadWeights(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}'); }catch(e){ return {}; } }
+function saveWeights(){ try{ localStorage.setItem(LS, JSON.stringify(app.weights)); }catch(e){} }
+
+// score = Σ w_i·p_i / Σ w_i over factors present on the hex; null when nothing present
+function scoreExpr(){
+  const num = ['+', 0], den = ['+', 0];
+  for (const [k,w] of Object.entries(app.weights)) {
+    if (!(w > 0)) continue;
+    const p = k + '_p';
+    num.push(['case', ['has', p], ['*', w, ['get', p]], 0]);
+    den.push(['case', ['has', p], w, 0]);
+  }
+  return ['case', ['>', den, 0], ['/', num, den], -1];
+}
+function colorExpr(){
+  return ['case', ['<', scoreExpr(), 0], '#bdbdbd',
+    ['interpolate', ['linear'], scoreExpr(), 0, '#d73027', 0.5, '#fee08b', 1, '#1a9850']];
+}
+function scoreOfProps(p){
+  let num=0, den=0;
+  for (const [k,w] of Object.entries(app.weights)) {
+    if (!(w>0)) continue;
+    const v = p[k+'_p'];
+    if (v === null || v === undefined) continue;
+    num += w*v; den += w;
+  }
+  return den>0 ? num/den : null;
+}
+
+const map = new maplibregl.Map({
+  container:'map',
+  style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  center:[76.92, 43.24], zoom:10.6, attributionControl:{compact:true},
+  preserveDrawingBuffer:true
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.on('idle', ()=>{ app.idle = true; });
+map.on('movestart', ()=>{ app.idle = false; });
+
+let hexIndex = {};
+async function init(){
+  const [factors, hexes] = await Promise.all([
+    fetch(DATA+'factors.json').then(r=>r.json()),
+    fetch(DATA+'hexes.geojson').then(r=>r.json())
+  ]);
+  app.factors = factors;
+  const saved = loadWeights();
+  for (const k of Object.keys(factors)) app.weights[k] = (k in saved) ? saved[k] : 1;
+  for (const f of hexes.features) hexIndex[f.properties.h3] = f.properties;
+  app.hexes = hexIndex;
+
+  const el = document.getElementById('factors');
+  el.innerHTML = '';
+  for (const [k,m] of Object.entries(factors)) {
+    const d = document.createElement('div'); d.className='f';
+    d.innerHTML = `<label><span>${m.label}</span><small>${m.period}</small></label>
+      <input type="range" min="0" max="3" step="0.25" value="${app.weights[k]}" data-k="${k}">`;
+    d.querySelector('input').addEventListener('input', e=>{ app.setWeight(k, parseFloat(e.target.value)); });
+    el.appendChild(d);
+  }
+
+  map.addSource('hex', {type:'geojson', data:hexes});
+  map.addLayer({id:'hex', type:'fill', source:'hex',
+    paint:{'fill-color': colorExpr(), 'fill-opacity': 0.55, 'fill-outline-color':'rgba(0,0,0,0.08)'}});
+  map.on('click', 'hex', e=>{
+    const p = e.features[0].properties;
+    const rows = Object.entries(factors).map(([k,m])=>{
+      const raw = p[k], pct = p[k+'_p'];
+      const has = pct!==null && pct!==undefined;
+      const contrib = has && app.weights[k]>0 ? (app.weights[k]*pct) : 0;
+      return `<tr><td>${m.label}</td><td class="n">${has? (+raw).toFixed(1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has? '+'+contrib.toFixed(2):''}</td></tr>`;
+    }).join('');
+    const s = scoreOfProps(p);
+    new maplibregl.Popup({maxWidth:'360px'}).setLngLat(e.lngLat)
+      .setHTML(`<div class="popup"><b>Балл ${s===null?'—':Math.round(s*100)}</b> · <small>${p.h3}</small><table><tr><th></th><th>знач.</th><th>перц.</th><th>вклад</th></tr>${rows}</table></div>`)
+      .addTo(map);
+  });
+  map.on('mouseenter','hex',()=>map.getCanvas().style.cursor='pointer');
+  map.on('mouseleave','hex',()=>map.getCanvas().style.cursor='');
+  document.getElementById('status').textContent = `${hexes.features.length} гексов H3 res 9 · ${Object.keys(factors).length} фактор(ов)`;
+  app.ready = true;
+}
+
+app.setWeight = (k, w) => {
+  app.weights[k] = w; saveWeights(); app.idle = false;
+  const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
+  if (map.getLayer('hex')) map.setPaintProperty('hex','fill-color', colorExpr());
+};
+app.scoreOf = (h3) => hexIndex[h3] ? scoreOfProps(hexIndex[h3]) : undefined;
+app.pixelAt = (lon, lat) => {           // rendered RGBA at a map point — used by the check script
+  const pt = map.project([lon, lat]);
+  const c = map.getCanvas(), gl = c.getContext('webgl2') || c.getContext('webgl');
+  const dpr = c.width / c.clientWidth;
+  const px = new Uint8Array(4);
+  gl.readPixels(Math.round(pt.x*dpr), Math.round(c.height - pt.y*dpr), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  return Array.from(px);
+};
+
+map.on('load', ()=>init().catch(e=>{ document.getElementById('status').textContent = 'Ошибка загрузки данных: '+e; console.error(e); }));
+</script>
+</body>
+</html>
