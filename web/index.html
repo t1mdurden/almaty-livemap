@@ -89,7 +89,7 @@ function scoreOfProps(p){
 const map = new maplibregl.Map({
   container:'map',
   // inline style: the map "load" event fires even if the basemap tiles are blocked, so the hexes always render
-  style:{version:8, sources:{osm:{type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256, maxzoom:19, attribution:'© OpenStreetMap contributors'}},
+  style:{version:8, glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf', sources:{osm:{type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256, maxzoom:19, attribution:'© OpenStreetMap contributors'}},
          layers:[{id:'bg', type:'background', paint:{'background-color':'#f4f4f2'}}, {id:'osm', type:'raster', source:'osm', paint:{'raster-saturation':-0.8, 'raster-opacity':0.9}}]},
   center:[76.92, 43.24], zoom:10.6, attributionControl:{compact:true},
   preserveDrawingBuffer:true
@@ -165,7 +165,7 @@ async function init(){
     paint:{'circle-color': colorExpr(), 'circle-opacity':0.85, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5,
            'circle-radius': ['interpolate',['linear'],['zoom'], 10, ['+', 5, ['*', 0.25, ['sqrt', ['get','n_hex']]]], 14, ['+', 12, ['*', 0.8, ['sqrt', ['get','n_hex']]]]]}});
   map.addLayer({id:'places-label', type:'symbol', source:'places', minzoom:11, maxzoom:15,
-    layout:{'text-field':['get','name'], 'text-size':11, 'text-offset':[0,1.2], 'text-anchor':'top', 'text-font':['Open Sans Regular','Arial Unicode MS Regular']},
+    layout:{'text-field':['get','name'], 'text-size':11, 'text-offset':[0,1.2], 'text-anchor':'top', 'text-font':['Open Sans Regular']},
     paint:{'text-color':'#222', 'text-halo-color':'#fff', 'text-halo-width':1.2}});
   document.querySelectorAll('input[name=view]').forEach(r=>r.addEventListener('change', e=>app.setView(e.target.value)));
   document.getElementById('bld').addEventListener('change', e=>{ for (const L of ['bld','houses']) map.setLayoutProperty(L,'visibility', e.target.checked?'visible':'none'); });
