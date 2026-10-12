@@ -21,9 +21,10 @@
   .f input[type=range]{width:100%}
   .legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#444}
   .legend .bar{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#d73027,#fee08b,#1a9850)}
-  #cmp table{border-collapse:collapse;width:100%}
-  #cmp td,#cmp th{padding:3px 6px 3px 0;border-top:1px solid #eee;text-align:right;white-space:nowrap}
-  #cmp td:first-child,#cmp th:first-child{text-align:left;white-space:normal}
+  #cmp table{border-collapse:collapse;width:100%;table-layout:fixed}
+  #cmp td,#cmp th{padding:4px 6px;border-top:1px solid #eee;text-align:right;white-space:normal;overflow-wrap:anywhere;vertical-align:top}
+  #cmp td:first-child,#cmp th:first-child{text-align:left;padding-left:0;width:32%}
+  #cmp th{font-weight:600}
   #cmp .win{background:#e8f5e9;font-weight:600}
   @media (max-width:900px){#cmp{position:static;width:auto;max-width:none;margin:0 0 8px}}
   .tab{border:0;background:none;padding:6px 10px;font:inherit;font-size:13px;color:#666;cursor:pointer;border-bottom:2px solid transparent}
@@ -49,7 +50,7 @@
 <div id="map"></div>
 <button id="cmpbtn" style="position:absolute;top:12px;right:52px;z-index:2;font:inherit;font-size:13px;padding:6px 12px;border:1px solid #1a4d8f;color:#1a4d8f;background:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)">⇄ Сравнить две точки</button>
 <div id="cmphint" style="display:none;position:absolute;top:52px;right:52px;z-index:2;max-width:320px;font-size:12px;color:#8a4b00;background:#fff6e5;border-radius:8px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.15)"></div>
-<div id="cmp" style="display:none;position:absolute;top:52px;right:52px;width:420px;max-width:calc(100% - 340px);max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:10px 14px;box-sizing:border-box;font-size:12px"></div>
+<div id="cmp" style="display:none;position:absolute;top:52px;right:52px;width:600px;max-width:calc(100% - 350px);max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:10px 14px;box-sizing:border-box;font-size:12px"></div>
 <div id="panel">
   <h1>Где в Алматы удобно жить</h1>
   <div style="display:flex;gap:4px;margin-bottom:8px;border-bottom:1px solid #e5e5e5">
@@ -245,7 +246,7 @@ async function init(){
   for (const L of ['places','bld','houses']) {
     map.on('click', L, e=>{
       const raw = e.features[0].properties;
-      if (L === 'places') { openCard(e.lngLat, `${raw.name} · ${raw.n_hex} гекс.`, raw); return; }
+      if (L === 'places') { openCard(e.lngLat, raw.name, raw); return; }
       const h = hexIndex[raw.h3] || {};
       const p = {...h, metro_min: raw.mm, metro_min_p: raw.mp};
       openCard(e.lngLat, (raw.a || raw.n || (L==='bld' ? 'Многоквартирный дом' : 'Дом')) + (raw.lv ? ' · '+raw.lv+' эт.' : ''), p);
