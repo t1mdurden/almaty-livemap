@@ -10,5 +10,11 @@
   "unit": "на 1000 жителей в год",
   "better": "low",
   "period": "gis.kgp.kz 2023–2025 / Kontur 2023"
+ },
+ "pm25_winter": {
+  "label": "PM2.5 зимой",
+  "unit": "мкг/м³",
+  "better": "low",
+  "period": "airkaz.org, зимы 2017–2020"
  }
 }
