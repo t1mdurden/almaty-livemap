@@ -389,26 +389,48 @@
         {
           "id": "s5-r01",
           "does": "`uv run python -m pipeline.poi fetch` тянет через Overpass по bbox 6 категорий POI (теги зафиксированы в pipeline/poi.py) в data/raw/poi.parquet с ретраем и переключением зеркала при 429/504",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s5.sh → \"{park 1483, grocery 1271, pharmacy 388, clinic 366, school 306, kindergarten 226}; cat15 Abai 6; 1391 unpopulated hexes with cat15 0; s5 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s5.sh"
+          }
         },
         {
           "id": "s5-r02",
           "does": "`uv run python -m pipeline.poi grid` считает на гекс число POI каждой категории в 1 км (по кольцам H3) и cat15 = число категорий с ≥1 объектом",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s5.sh → \"{park 1483, grocery 1271, pharmacy 388, clinic 366, school 306, kindergarten 226}; cat15 Abai 6; 1391 unpopulated hexes with cat15 0; s5 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s5.sh"
+          }
         },
         {
           "id": "s5-r03",
           "does": "scripts/check-s5.sh: cat15(«Абая») = 6, cat15(степь за БАКАД) = 0, продуктовых ≥ 500",
-          "status": "todo",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s5.sh → \"{park 1483, grocery 1271, pharmacy 388, clinic 366, school 306, kindergarten 226}; cat15 Abai 6; 1391 unpopulated hexes with cat15 0; s5 CHECK PASSED\" (2026-10-12)"
+          },
           "attempts": [],
-          "is_check": true
+          "is_check": true,
+          "discharge": {
+            "rerun": "bash scripts/check-s5.sh"
+          }
         }
-      ]
+      ],
+      "shape": "six Overpass bbox queries cached as raw JSON, one parquet, counts per hex over a 6-ring disk (~1 km), cat15 = categories present",
+      "trap": "Overpass public mirrors stall for 10+ minutes under load and overpass-api.de answers 406 without a User-Agent; the cache per category is what makes a rerun free",
+      "delete": [
+        "Geofabrik PBF + osmium (224 MB) — bbox Overpass with caching covers it",
+        "walking-network isochrones — a 1 km disk is the honest grain for POI counts in thin OSM"
+      ],
+      "force": []
     },
     {
       "id": "s6",

@@ -2,7 +2,7 @@
 
 **Goal.** Личная карта Алматы на гексах H3 с ползунками весов факторов (docs/prd.md). Ledger: `.claude/slices.json` (6 слайсов). Spine: compound-v:get-shit-done.
 
-**Next.** s5-r02/r03 — дождаться `pipeline.poi fetch` (Overpass медленный, кэш по категориям в data/raw/poi_*.json), затем `bash scripts/check-s5.sh`. Потом всё остальное ждёт владельца (см. ниже).
+**Next.** Всё локальное закрыто (s1, s2, s3, s5 passed; s4 и s6 ждут владельца). Следующий шаг — пункт 1 списка «Needs owner».
 
 **Proof commands.** `bash scripts/check-s1.sh`, `check-s2.sh`, `check-s3.sh` → PASSED 2026-10-12. `check-s4.sh` → exit 2 BLOCKED (нет ключа). `check-s6.sh` → локальная часть.
 

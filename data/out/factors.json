@@ -22,5 +22,11 @@
   "unit": "шт в 400 м",
   "better": "high",
   "period": "OSM, 2026-10"
+ },
+ "cat15": {
+  "label": "Инфраструктура в 1 км",
+  "unit": "категорий из 6",
+  "better": "high",
+  "period": "OSM, 2026-10"
  }
 }
