@@ -103,38 +103,87 @@
         {
           "id": "s2-r01",
           "does": "`uv run python -m pipeline.crime fetch` постранично (resultOffset / objectid > last) выкачивает все точки слоя KPSSU/crime/FeatureServer/1 в bbox Алматы с yr ≥ 2023 в data/raw/crime.parquet; повторный запуск докачивает только новое",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s2.sh → \"server total 84624 | local 84624; crime_rate station 7.65 ermensay 2.43; top-5% centre share 9%; s2 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s2.sh"
+          }
         },
         {
           "id": "s2-r02",
           "does": "число строк в crime.parquet совпадает с returnCountOnly сервера для того же where+bbox (тест печатает оба числа)",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s2.sh → \"server total 84624 | local 84624; crime_rate station 7.65 ermensay 2.43; top-5% centre share 9%; s2 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s2.sh"
+          }
         },
         {
           "id": "s2-r03",
           "does": "`uv run python -m pipeline.crime agg` даёт на гекс: crime_n (все), crime_grave_n (hard_code тяжкие/особо тяжкие), crime_street_n (кражи/грабёж/разбой/хулиганство по stat), сглаженные по кольцу k=1 с весом 0.5",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s2.sh → \"server total 84624 | local 84624; crime_rate station 7.65 ermensay 2.43; top-5% centre share 9%; s2 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s2.sh"
+          }
         },
         {
           "id": "s2-r04",
           "does": "нормировка: crime_rate = crime_n / (жилая площадь зданий OSM в гексе + ε), и в hexes.geojson есть и crime_n, и crime_rate; гекс с нулём жилья получает null",
-          "status": "todo",
+          "status": "dropped",
           "evidence": null,
-          "attempts": []
+          "attempts": [],
+          "dropped_kind": "moved",
+          "replaced_by": [
+            "s2-r04b"
+          ],
+          "dropped_by": "assistant 2026-10-12: OSM building footprints for all of Almaty are a 100 MB Overpass pull; Kontur population (CC BY, 15 MB, H3 res 8) is the right denominator"
         },
         {
           "id": "s2-r05",
           "does": "scripts/check-s2.sh: сверка счёта с сервером, порядок «вокзал Алматы-2 > Ерменсай» по crime_rate_p, и доля центральных гексов (Алмалинский район) в топ-5% по crime_rate ≤ 50%",
-          "status": "todo",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s2.sh → \"server total 84624 | local 84624; crime_rate station 7.65 ermensay 2.43; top-5% centre share 9%; s2 CHECK PASSED\" (2026-10-12)"
+          },
           "attempts": [],
-          "is_check": true
+          "is_check": true,
+          "discharge": {
+            "rerun": "bash scripts/check-s2.sh"
+          }
+        },
+        {
+          "id": "s2-r04b",
+          "does": "нормировка: crime_rate = уличные преступления в год на 1000 жителей родительского гекса res 8 по Kontur Population 2023 (pipeline/pop.py); гексы с населением < 100 получают null; в hexes.geojson есть и crime_n, и crime_rate",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "bash scripts/check-s2.sh → \"server total 84624 | local 84624; crime_rate station 7.65 ermensay 2.43; top-5% centre share 9%; s2 CHECK PASSED\" (2026-10-12)"
+          },
+          "discharge": {
+            "rerun": "bash scripts/check-s2.sh"
+          },
+          "attempts": []
+        }
+      ],
+      "shape": "ArcGIS FeatureServer paged by resultOffset with objectid dedupe, cached per year; counts per res-9 hex + ring smoothing; rate per 1000 residents at res 8 (Kontur)",
+      "trap": "per-capita rate explodes at bazaars (Алтын Орда cell: 404 street crimes / 741 residents = 182 per 1000) — the top band is markets, not neighbourhoods; also ст.190 fraud is geocoded to the victim and must stay out of the street index",
+      "delete": [
+        "OSM building-area denominator (s2-r04) — Kontur answers it",
+        "qamqor.gov.kz scraping — the ArcGIS layer behind it is public"
+      ],
+      "force": [
+        {
+          "what": "pages come back with overlapping objectids (34922 rows for 34167 ids) — dedupe or the count check fails"
         }
       ]
     },

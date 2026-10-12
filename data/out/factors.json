@@ -4,5 +4,11 @@
   "unit": "мин",
   "better": "low",
   "period": "OSM, 2026-10"
+ },
+ "crime_rate": {
+  "label": "Уличная преступность",
+  "unit": "на 1000 жителей в год",
+  "better": "low",
+  "period": "gis.kgp.kz 2023–2025 / Kontur 2023"
  }
 }
