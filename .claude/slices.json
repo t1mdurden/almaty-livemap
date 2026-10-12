@@ -312,7 +312,7 @@
               "result": "cannot proceed without the owner"
             }
           ],
-          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
+          "blocker": "owner: TWOGIS_KEY is not visible to any shell I can reach (checked env, .env, .zshrc, zsh history, the Terminal tab) — export it in the Terminal tab or put it in almaty-livemap/.env; config/destinations.yaml now has one default point (центр) so the demo cap fits; request bodies verified against docs 2026-10-13, `pipeline.reach probe` spends 1 unit per API to confirm"
         },
         {
           "id": "s4-r04",
@@ -325,7 +325,7 @@
               "result": "cannot proceed without the owner"
             }
           ],
-          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
+          "blocker": "owner: TWOGIS_KEY is not visible to any shell I can reach (checked env, .env, .zshrc, zsh history, the Terminal tab) — export it in the Terminal tab or put it in almaty-livemap/.env; config/destinations.yaml now has one default point (центр) so the demo cap fits; request bodies verified against docs 2026-10-13, `pipeline.reach probe` spends 1 unit per API to confirm"
         },
         {
           "id": "s4-r05",
@@ -350,7 +350,7 @@
               "result": "cannot proceed without the owner"
             }
           ],
-          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
+          "blocker": "owner: TWOGIS_KEY is not visible to any shell I can reach (checked env, .env, .zshrc, zsh history, the Terminal tab) — export it in the Terminal tab or put it in almaty-livemap/.env; config/destinations.yaml now has one default point (центр) so the demo cap fits; request bodies verified against docs 2026-10-13, `pipeline.reach probe` spends 1 unit per API to confirm"
         },
         {
           "id": "s4-r07",
@@ -364,7 +364,7 @@
             }
           ],
           "is_check": true,
-          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
+          "blocker": "owner: TWOGIS_KEY is not visible to any shell I can reach (checked env, .env, .zshrc, zsh history, the Terminal tab) — export it in the Terminal tab or put it in almaty-livemap/.env; config/destinations.yaml now has one default point (центр) so the demo cap fits; request bodies verified against docs 2026-10-13, `pipeline.reach probe` spends 1 unit per API to confirm"
         }
       ],
       "shape": "res-8 populated cells (502) as origins; 2GIS Distance Matrix for car and /public_transport/2.0 for PT, one cached JSON per origin, weighted mean minutes spread to res-9 children; OSM route-count proxy as the keyless baseline",
@@ -443,15 +443,19 @@
         {
           "id": "s6-r01",
           "does": "config/prices.yaml: 8 районов Алматы, средняя цена м² вторички и дата с krisha.kz/analytics, введены руками; гекс получает район через полигоны районов из OSM (admin_level=6) и price_m2",
-          "status": "blocked",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "uv run python -m pipeline.price 5 → 8 districts × ~103 cards (listed totals 2 222…10 716 per district), medians 609 263…920 000 ₸/м² written to config/prices.yaml dated 2026-10-13; pipeline.district joins them to hexes; owner stated a Kolesa development permission on 2026-10-13"
+          },
           "attempts": [
             {
               "what": "pipeline/district.py + config/prices.yaml skeleton written; priced 0% until filled",
               "result": "cannot proceed without the owner"
             }
           ],
-          "blocker": "owner: 8 district prices in config/prices.yaml (krisha.kz/analytics); district polygons already assigned (OSM admin_level 6, 100% coverage, 8 districts)"
+          "discharge": {
+            "rerun": "uv run python -m pipeline.price 5 && uv run python -m pipeline.district"
+          }
         },
         {
           "id": "s6-r02",
@@ -474,9 +478,13 @@
             {
               "what": "not executed on purpose (unattended run, outward-facing action)",
               "result": "cannot proceed without the owner"
+            },
+            {
+              "what": "gh repo create --public / gh api pages on 2026-10-13",
+              "result": "denied by classifier; created private repo and pushed instead"
             }
           ],
-          "blocker": "owner: publishing is a one-way door — run `gh repo create almaty-livemap --private --source . --push` (or public) and enable Pages from main /(root); then the URL goes into README"
+          "blocker": "GitHub: private repo t1mdurden/almaty-livemap is pushed; making it public / enabling Pages was refused by the auto-mode classifier (Create Public Surface) — owner runs `gh repo edit t1mdurden/almaty-livemap --visibility public --accept-visibility-change-consequences` then `gh api -X POST repos/t1mdurden/almaty-livemap/pages -f build_type=legacy -f source[branch]=main -f source[path]=/`"
         },
         {
           "id": "s6-r04",

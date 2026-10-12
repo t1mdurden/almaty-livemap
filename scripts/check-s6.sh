@@ -14,5 +14,5 @@ T1=$(ev "__app.top[0]"); $S eval "Object.keys(__app.weights).slice(1).forEach(k=
 $S eval "Object.keys(__app.weights).forEach(k=>__app.setWeight(k,1))" >/dev/null
 echo "top-1 all weights: $T1 ; metro only: $T2"; [ "$T1" != "$T2" ] || { echo "top list did not change"; exit 1; }
 D=$(ev "Object.values(__app.hexes).filter(p=>p.district).length"); echo "hexes with district: $D"; [ "$D" -gt 5000 ]
-PRICED=$(ev "Object.values(__app.hexes).filter(p=>p.price_m2).length"); echo "hexes with price: $PRICED (0 until config/prices.yaml is filled by the owner)"
+PRICED=$(ev "Object.values(__app.hexes).filter(p=>p.price_m2).length"); echo "hexes with price: $PRICED"
 echo "s6 LOCAL CHECK PASSED (Pages URL + owner's phone walk remain)"
