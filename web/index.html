@@ -44,6 +44,7 @@
 </div>
 <script>
 const DATA = '../data/out/';
+const BUST = '?t=' + Date.now();   // local http.server sends no cache headers; always fetch fresh data
 const LS = 'almaty-livemap.weights.v1';
 const app = window.__app = {ready:false, weights:{}, factors:{}, idle:false};
 
@@ -92,10 +93,10 @@ map.on('movestart', ()=>{ app.idle = false; });
 let hexIndex = {};
 async function init(){
   const [factors, hexes, places, buildings] = await Promise.all([
-    fetch(DATA+'factors.json').then(r=>r.json()),
-    fetch(DATA+'hexes.geojson').then(r=>r.json()),
-    fetch(DATA+'places.geojson').then(r=>r.json()).catch(()=>({type:'FeatureCollection',features:[]})),
-    fetch(DATA+'buildings.geojson').then(r=>r.json()).catch(()=>({type:'FeatureCollection',features:[]}))
+    fetch(DATA+'factors.json'+BUST).then(r=>r.json()),
+    fetch(DATA+'hexes.geojson'+BUST).then(r=>r.json()),
+    fetch(DATA+'places.geojson'+BUST).then(r=>r.json()).catch(()=>({type:'FeatureCollection',features:[]})),
+    fetch(DATA+'buildings.geojson'+BUST).then(r=>r.json()).catch(()=>({type:'FeatureCollection',features:[]}))
   ]);
   app.places = places; app.buildings = buildings;
   app.factors = factors;
@@ -128,7 +129,7 @@ async function init(){
   map.addLayer({id:'places', type:'circle', source:'places', maxzoom:15,
     paint:{'circle-color': colorExpr(), 'circle-opacity':0.85, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5,
            'circle-radius': ['interpolate',['linear'],['zoom'], 10, ['+', 5, ['*', 0.25, ['sqrt', ['get','n_hex']]]], 14, ['+', 12, ['*', 0.8, ['sqrt', ['get','n_hex']]]]]}});
-  map.addLayer({id:'places-label', type:'symbol', source:'places', minzoom:11.5, maxzoom:15,
+  map.addLayer({id:'places-label', type:'symbol', source:'places', minzoom:11, maxzoom:15,
     layout:{'text-field':['get','name'], 'text-size':11, 'text-offset':[0,1.2], 'text-anchor':'top', 'text-font':['Open Sans Regular','Arial Unicode MS Regular']},
     paint:{'text-color':'#222', 'text-halo-color':'#fff', 'text-halo-width':1.2}});
   document.querySelectorAll('input[name=view]').forEach(r=>r.addEventListener('change', e=>app.setView(e.target.value)));

@@ -6,6 +6,8 @@
 
 **Proof commands.** `bash scripts/check-s1.sh`, `check-s2.sh`, `check-s3.sh` → PASSED 2026-10-12. `check-s4.sh` → exit 2 BLOCKED (нет ключа). `check-s6.sh` → локальная часть.
 
+**Done 2026-10-13.** s4 (2GIS доезд), цены krisha, маска жилой застройки, микрорайоны кружками + рейтинг, дома с зума 14, подписи. Публикация отложена владельцем.
+
 **Done 2026-10-12.** Источники проверены (docs/research/sources.md). Слои: metro_min, crime_rate (84 624 точки + Kontur), pm25_winter (22 датчика), transit_proxy (OSM), district (8 районов). Страница: MapLibre, ползунки, попап, Топ-20. Код 2GIS написан, не запускался.
 
 **Needs owner (руками).**

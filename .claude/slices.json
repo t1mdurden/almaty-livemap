@@ -524,6 +524,83 @@
         "a backend for the top list"
       ],
       "force": []
+    },
+    {
+      "id": "s7",
+      "capability": "Карта показывает только жилую часть города (без гор и степи), а поверх — именованные микрорайоны кружками с баллом и рейтингом, и при приближении — конкретные дома, окрашенные по баллу своего гекса; подписи факторов понятны без расшифровки",
+      "check": "в панели: горы/степь не окрашены; список микрорайонов отсортирован по баллу и меняется от ползунков; на зуме ≥14 видны окрашенные дома; в подписях нет сокращений «ОТ» и «мои точки»",
+      "unknown": "полнота OSM: частный сектор и микрорайоны без place-тега выпадают из маски/подписей",
+      "confidence": 0.9,
+      "shape": "маска = OSM landuse residential/retail/commercial ∪ гексы с домом apartments ∪ гексы с ≥3 частными домами; перцентили только по маске; места = place=neighbourhood/quarter/suburb, гекс → полигон места или ближайшая точка ≤900 м; дома = building=apartments с перцентилями своего гекса",
+      "trap": "Overpass-зеркала держат 76k домов только через out center; 1478 из 2169 гексов имеют именованный микрорайон — остальные видны только в режиме «Гексы»",
+      "delete": [
+        "изохроны по улицам — микрорайон + дом закрывают вопрос «где именно»",
+        "подложка CARTO (ключ) — OSM raster"
+      ],
+      "force": [],
+      "rows": [
+        {
+          "id": "s7-r01",
+          "does": "`pipeline.mask` помечает гекс жилым по landuse/многоквартирным/≥3 частным домам; в hexes.geojson нет гор и степи (2169 из 5582), перцентили считаются только по жилым",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "pipeline.mask → \"built hexes: 2169 of 5582 (39%)\"; pipeline.places → \"196 named, 145 with ≥2 hexes, hexes assigned 1478/2169\"; pipeline.buildings → \"6894 apartment footprints\"; browser pane 2026-10-13: ranked list starts «79 Самал 1 · Медеуский · 917 тыс/м²», circles coloured by score, footprints coloured at zoom 14.6, labels «На авто до: Центр (Абая/Назарбаева), будни 8:30»"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.mask && uv run python -m pipeline.build"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s7-r02",
+          "does": "`pipeline.places` даёт places.geojson: точка на микрорайон с числом гексов и средними перцентилями; на странице кружки с подписями, список по баллу, клик летит к месту",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "pipeline.mask → \"built hexes: 2169 of 5582 (39%)\"; pipeline.places → \"196 named, 145 with ≥2 hexes, hexes assigned 1478/2169\"; pipeline.buildings → \"6894 apartment footprints\"; browser pane 2026-10-13: ranked list starts «79 Самал 1 · Медеуский · 917 тыс/м²», circles coloured by score, footprints coloured at zoom 14.6, labels «На авто до: Центр (Абая/Назарбаева), будни 8:30»"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.places"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s7-r03",
+          "does": "`pipeline.buildings` даёт buildings.geojson: контуры многоквартирных домов с перцентилями гекса; на зуме ≥14 они окрашены по баллу, клик показывает адрес/этажность/разбор",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "pipeline.mask → \"built hexes: 2169 of 5582 (39%)\"; pipeline.places → \"196 named, 145 with ≥2 hexes, hexes assigned 1478/2169\"; pipeline.buildings → \"6894 apartment footprints\"; browser pane 2026-10-13: ranked list starts «79 Самал 1 · Медеуский · 917 тыс/м²», circles coloured by score, footprints coloured at zoom 14.6, labels «На авто до: Центр (Абая/Назарбаева), будни 8:30»"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.buildings"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s7-r04",
+          "does": "подписи факторов: «На авто до: <точка>, будни 8:30», «Общественным транспортом до: …», «Уличная преступность (кражи, грабежи, хулиганство)», столбец «лучше, чем» с пояснением",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "pipeline.mask → \"built hexes: 2169 of 5582 (39%)\"; pipeline.places → \"196 named, 145 with ≥2 hexes, hexes assigned 1478/2169\"; pipeline.buildings → \"6894 apartment footprints\"; browser pane 2026-10-13: ranked list starts «79 Самал 1 · Медеуский · 917 тыс/м²», circles coloured by score, footprints coloured at zoom 14.6, labels «На авто до: Центр (Абая/Назарбаева), будни 8:30»"
+          },
+          "discharge": {
+            "rerun": "cat data/out/factors.json"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s7-r05",
+          "does": "владелец открывает localhost:8791/web/, видит микрорайоны кружками, рейтинг и дома при приближении, и говорит, что теперь понятно «где именно»",
+          "status": "blocked",
+          "blocker": "owner walk",
+          "is_check": true,
+          "evidence": null,
+          "attempts": []
+        }
+      ]
     }
   ],
   "notSlices": [
