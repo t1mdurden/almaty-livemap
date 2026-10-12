@@ -169,20 +169,20 @@ async function init(){
     paint:{'text-color':'#222', 'text-halo-color':'#fff', 'text-halo-width':1.2}});
   document.querySelectorAll('input[name=view]').forEach(r=>r.addEventListener('change', e=>app.setView(e.target.value)));
   document.getElementById('bld').addEventListener('change', e=>{ for (const L of ['bld','houses']) map.setLayoutProperty(L,'visibility', e.target.checked?'visible':'none'); });
+  window.openCard = (lngLat, title, p) => {        // one card at a time; re-rendered live when weights move
+    const render = () => { const s = scoreOfProps(p); return `<div class="popup"><b>${title}</b> · балл ${s===null?'—':Math.round(s*100)}${p.district?'<br><small>'+p.district+(p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':'')+'</small>':''}${factorTable(p)}</div>`; };
+    if (app.card) app.card.remove();
+    app.card = new maplibregl.Popup({maxWidth:'440px'}).setLngLat(lngLat).setHTML(render()).addTo(map);
+    app.card.rerender = () => { if (app.card && app.card.isOpen()) app.card.setHTML(render()); };
+    app.card.on('close', ()=>{ app.card = null; });
+  };
   for (const L of ['places','bld','houses']) {
     map.on('click', L, e=>{
       const raw = e.features[0].properties;
-      let p = raw, head;
-      if (L === 'places') {
-        const s = scoreOfProps(p);
-        head = `<b>${p.name}</b> · балл ${s===null?'—':Math.round(s*100)} · ${p.n_hex} гекс.`;
-      } else {
-        const h = hexIndex[raw.h3] || {};
-        p = {...h, metro_min: raw.mm, metro_min_p: raw.mp};
-        const s = scoreOfProps(p);
-        head = `<b>${raw.a || raw.n || (L==='bld' ? 'Многоквартирный дом' : 'Дом')}</b> · балл ${s===null?'—':Math.round(s*100)}${raw.lv?' · '+raw.lv+' эт.':''}`;
-      }
-      new maplibregl.Popup({maxWidth:'440px'}).setLngLat(e.lngLat).setHTML(`<div class="popup">${head}${p.district?'<br><small>'+p.district+(p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':'')+'</small>':''}${factorTable(p)}</div>`).addTo(map);
+      if (L === 'places') { openCard(e.lngLat, `${raw.name} · ${raw.n_hex} гекс.`, raw); return; }
+      const h = hexIndex[raw.h3] || {};
+      const p = {...h, metro_min: raw.mm, metro_min_p: raw.mp};
+      openCard(e.lngLat, (raw.a || raw.n || (L==='bld' ? 'Многоквартирный дом' : 'Дом')) + (raw.lv ? ' · '+raw.lv+' эт.' : ''), p);
     });
     map.on('mouseenter', L, ()=>map.getCanvas().style.cursor='pointer');
     map.on('mouseleave', L, ()=>map.getCanvas().style.cursor='');
@@ -200,7 +200,8 @@ async function init(){
     }).join('');
     return `<table><tr><th></th><th>значение</th><th>лучше, чем</th><th>баллов</th></tr>${rows}</table><div style="font-size:11px;color:#666;margin-top:6px">«лучше, чем» — доля жилых гексов города, где этот показатель хуже. «баллов» — вклад в итоговый балл с учётом твоих весов; сумма = балл.</div>`;
   };
-  map.on('click', 'hex', e=>{
+  map.on('click', 'hex', e=>{ openCard(e.lngLat, 'Гекс', e.features[0].properties); });
+  map.on('click', 'hex-legacy-unused', e=>{
     const p = e.features[0].properties;
     const rows = Object.entries(factors).map(([k,m])=>{
       const raw = p[k], pct = p[k+'_p'];
@@ -268,6 +269,7 @@ function renderPlaces(){
 app.setWeight = (k, w) => {
   app.weights[k] = w; saveWeights(); app.idle = false;
   if (map.getLayer('places')) map.setPaintProperty('places', 'circle-color', colorExpr());
+  if (app.card && app.card.rerender) app.card.rerender();
   clearTimeout(app._t); app._t = setTimeout(()=>{ renderTop(); renderPlaces(); if (window.rescoreBuildings) rescoreBuildings(); }, 200);
   const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
   const ww = inp && inp.parentElement.querySelector('.w'); if (ww && window.weightWord) ww.textContent = weightWord(w);
