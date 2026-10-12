@@ -197,38 +197,75 @@
         {
           "id": "s3-r01",
           "does": "`uv run python -m pipeline.air sensors` вытаскивает из almaty.php встроенный JSON: id, name, lat, lng всех датчиков Алматы (≥80) в data/raw/air_sensors.parquet",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s3.sh → \"sensors with winter mean: 22; pm25_winter Ermensay 59.3 north 111.8; period label present; s3 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s3.sh"
+          }
         },
         {
           "id": "s3-r02",
           "does": "`uv run python -m pipeline.air history` скачивает xls/daily_almaty_6oct20.xlsx, парсит суточные средние по датчикам, считает зимнее (ноя–фев) среднее на датчик; ≥15 датчиков с ≥60 зимними днями",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s3.sh → \"sensors with winter mean: 22; pm25_winter Ermensay 59.3 north 111.8; period label present; s3 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s3.sh"
+          }
         },
         {
           "id": "s3-r03",
           "does": "`uv run python -m pipeline.air grid` интерполирует IDW (p=2, 5 соседей, радиус 4 км) зимнее среднее в гексы → pm25_winter; гексы дальше 4 км от любого датчика получают null",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s3.sh → \"sensors with winter mean: 22; pm25_winter Ermensay 59.3 north 111.8; period label present; s3 CHECK PASSED\" (2026-10-12)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s3.sh"
+          }
         },
         {
           "id": "s3-r04",
           "does": "`uv run python -m pipeline.air log` дописывает текущие значения живых датчиков в data/raw/air_log.parquet одной строкой на датчик-час, идемпотентно; launchd-plist в ops/ ставит его раз в час (установка — ручной шаг владельца)",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "uv run python -m pipeline.air log → \"air log: +4 rows, 4 total, 4 live sensors\"; second run adds 0 (idempotent). launchd plist in ops/ is written; loading it is the owner's step"
+          },
+          "attempts": [],
+          "discharge": {
+            "owner": "Tim",
+            "check": "launchctl load ops/com.almaty-livemap.airlog.plist, next day data/raw/air_log.parquet has ~24 rows per live sensor"
+          }
         },
         {
           "id": "s3-r05",
           "does": "scripts/check-s3.sh: число датчиков с зимним средним ≥15; pm25_winter(Ерменсай) < pm25_winter(Алматы-1); в web/index.html рядом со слоем воздуха виден период «зимы 2017–2020»",
-          "status": "todo",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s3.sh → \"sensors with winter mean: 22; pm25_winter Ermensay 59.3 north 111.8; period label present; s3 CHECK PASSED\" (2026-10-12)"
+          },
           "attempts": [],
-          "is_check": true
+          "is_check": true,
+          "discharge": {
+            "rerun": "bash scripts/check-s3.sh"
+          }
+        }
+      ],
+      "shape": "one workbook (2017–2020 daily means, 48 sensors) → winter mean per sensor → IDW onto hexes; live page JSON only feeds an hourly logger for a future winter",
+      "trap": "only 4 of 84 listed sensors are alive today and the archive stops in 2020 — the layer is a 5-year-old gradient; label the period on the map and do not read small differences",
+      "delete": [
+        "any air API client — there is none; the page JSON and one xlsx are the whole source",
+        "kriging — 22 points, IDW is as good as it gets"
+      ],
+      "force": [
+        {
+          "what": "workbook dates are day-month labels without a year; the year must be inferred from the wrap-around"
         }
       ]
     },

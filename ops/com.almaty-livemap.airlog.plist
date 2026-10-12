@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.almaty-livemap.airlog</string>
+  <key>ProgramArguments</key><array>
+    <string>/Users/admin/.local/bin/uv</string><string>run</string><string>--directory</string>
+    <string>/Users/admin/Documents/GitHub/almaty-livemap</string><string>python</string><string>-m</string><string>pipeline.air</string><string>log</string>
+  </array>
+  <key>StartInterval</key><integer>3600</integer>
+  <key>StandardOutPath</key><string>/tmp/almaty-livemap-airlog.log</string>
+  <key>StandardErrorPath</key><string>/tmp/almaty-livemap-airlog.log</string>
+</dict></plist>
