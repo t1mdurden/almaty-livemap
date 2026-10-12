@@ -500,7 +500,7 @@
               "result": "denied by classifier; created private repo and pushed instead"
             }
           ],
-          "blocker": "GitHub: private repo t1mdurden/almaty-livemap is pushed; making it public / enabling Pages was refused by the auto-mode classifier (Create Public Surface) — owner runs `gh repo edit t1mdurden/almaty-livemap --visibility public --accept-visibility-change-consequences` then `gh api -X POST repos/t1mdurden/almaty-livemap/pages -f build_type=legacy -f source[branch]=main -f source[path]=/`"
+          "blocker": "owner deferred publication on 2026-10-13 («пока не делай github page»); local server instead: python3 -m http.server 8791 --directory . → http://localhost:8791/web/"
         },
         {
           "id": "s6-r04",
