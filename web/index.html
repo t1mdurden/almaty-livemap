@@ -37,10 +37,11 @@
     <label><input type="radio" name="view" value="hex"> Гексы</label>
     <label title="от зума 14"><input type="checkbox" id="bld" checked> Дома</label>
   </div>
+  <div style="font-size:12px;color:#555;margin:2px 0 4px"><b>Важность факторов.</b> Тяни вправо — фактор сильнее влияет на балл, влево до нуля — не учитывается.</div>
   <div id="factors"></div>
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
-  <div id="status" style="font-size:12px;color:#666;margin-top:6px"></div>
-  <details id="placebox" open style="margin-top:10px"><summary style="cursor:pointer"><b>Микрорайоны</b> по баллу при этих весах</summary>
+  <details style="font-size:11px;color:#666;margin-top:6px"><summary style="cursor:pointer">Источники данных</summary><div id="sources"></div><div id="status"></div></details>
+  <details id="placebox" open style="margin-top:10px"><summary style="cursor:pointer"><b>Лучшие микрорайоны</b> при этих весах</summary>
     <ol id="places" style="padding-left:18px;margin:6px 0;font-size:13px;max-height:260px;overflow:auto"></ol>
   </details>
   <details id="topbox" style="margin-top:6px"><summary style="cursor:pointer"><b>Топ-20 гексов</b></summary>
@@ -115,15 +116,19 @@ async function init(){
   }
   app.hexes = hexIndex;
 
+  const SHORT = {metro_min:'Метро пешком', crime_rate:'Уличная преступность', pm25_winter:'Чистый воздух зимой', car_min:'На авто до центра в 8:30',
+                 pt_min:'На автобусе/метро до центра в 8:30', transit_proxy:'Остановки и маршруты рядом', cat15:'Магазины, школы, аптеки, парки в 1 км'};
+  window.weightWord = (w)=> w<=0 ? 'не учитывать' : w<1 ? 'слабо' : w===1 ? 'обычно' : w<=2 ? 'важно' : 'очень важно';
   const el = document.getElementById('factors');
   el.innerHTML = '';
   for (const [k,m] of Object.entries(factors)) {
     const d = document.createElement('div'); d.className='f';
-    d.innerHTML = `<label><span>${m.label}</span><small>${m.period}</small></label>
-      <input type="range" min="0" max="3" step="0.25" value="${app.weights[k]}" data-k="${k}">`;
-    d.querySelector('input').addEventListener('input', e=>{ app.setWeight(k, parseFloat(e.target.value)); });
+    d.innerHTML = `<label title="${m.label} — ${m.period}"><span>${SHORT[k]||m.label}</span><b class="w" style="font-weight:600;color:#1a4d8f;white-space:nowrap">${weightWord(app.weights[k])}</b></label>
+      <input type="range" min="0" max="3" step="0.25" value="${app.weights[k]}" data-k="${k}" aria-label="${SHORT[k]||m.label}">`;
+    d.querySelector('input').addEventListener('input', e=>{ app.setWeight(k, parseFloat(e.target.value)); d.querySelector('.w').textContent = weightWord(parseFloat(e.target.value)); });
     el.appendChild(d);
   }
+  document.getElementById('sources').innerHTML = Object.values(factors).map(m=>`<div>${m.label} — ${m.period}</div>`).join('');
 
   map.addSource('hex', {type:'geojson', data:hexes});
   map.addLayer({id:'hex', type:'fill', source:'hex', layout:{visibility:'none'},
@@ -178,7 +183,7 @@ async function init(){
   });
   map.on('mouseenter','hex',()=>map.getCanvas().style.cursor='pointer');
   map.on('mouseleave','hex',()=>map.getCanvas().style.cursor='');
-  document.getElementById('status').textContent = `${hexes.features.length} гексов H3 res 9 · ${Object.keys(factors).length} фактор(ов)`;
+  document.getElementById('status').textContent = `${hexes.features.length} жилых гексов H3 res 9 · ${places.features.length} микрорайонов · ${buildings.features.length} домов`;
   renderTop(); renderPlaces();
   let v = 'places'; try{ v = localStorage.getItem(LS+'.view') || 'places'; }catch(e){}
   document.querySelector(`input[name=view][value="${v}"]`).checked = true; app.setView(v);
@@ -230,6 +235,7 @@ app.setWeight = (k, w) => {
   for (const L of ['bld','places']) if (map.getLayer(L)) map.setPaintProperty(L, L==='places'?'circle-color':'fill-color', colorExpr());
   clearTimeout(app._t); app._t = setTimeout(()=>{ renderTop(); renderPlaces(); }, 150);
   const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
+  const ww = inp && inp.parentElement.querySelector('.w'); if (ww && window.weightWord) ww.textContent = weightWord(w);
   if (map.getLayer('hex')) map.setPaintProperty('hex','fill-color', colorExpr());
 };
 app.scoreOf = (h3) => hexIndex[h3] ? scoreOfProps(hexIndex[h3]) : undefined;
