@@ -17,8 +17,14 @@
   .f input[type=range]{width:100%}
   .legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#444}
   .legend .bar{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#d73027,#fee08b,#1a9850)}
-  .popup td{padding:1px 6px 1px 0;white-space:nowrap}
-  .popup td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .popup{font-size:12px;line-height:1.3;max-width:380px}
+  .popup table{border-collapse:collapse;margin-top:4px}
+  .popup th{font-weight:500;color:#666;text-align:right;padding:0 0 2px 8px;white-space:nowrap}
+  .popup th:first-child{text-align:left;padding-left:0}
+  .popup td{padding:2px 0 2px 8px;vertical-align:top;border-top:1px solid #eee}
+  .popup td:first-child{padding-left:0;max-width:170px}
+  .popup td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .maplibregl-popup-content{padding:10px 14px 10px 12px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
   @media (max-width:600px){#panel{width:calc(100% - 24px)}}
 </style>
 </head>
@@ -139,19 +145,23 @@ async function init(){
       const p = e.features[0].properties; const s = scoreOfProps(p);
       const head = L==='places' ? `<b>${p.name}</b> · балл ${s===null?'—':Math.round(s*100)} · ${p.n_hex} гекс.` :
         `<b>${[p.street,p.house].filter(Boolean).join(', ')||p.name||'дом'}</b> · балл ${s===null?'—':Math.round(s*100)}${p.levels?' · '+p.levels+' эт.':''}${p.year?' · '+p.year:''}`;
-      new maplibregl.Popup({maxWidth:'380px'}).setLngLat(e.lngLat).setHTML(`<div class="popup">${head}${p.district?'<br><small>'+p.district+(p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':'')+'</small>':''}${factorTable(p)}</div>`).addTo(map);
+      new maplibregl.Popup({maxWidth:'400px'}).setLngLat(e.lngLat).setHTML(`<div class="popup">${head}${p.district?'<br><small>'+p.district+(p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':'')+'</small>':''}${factorTable(p)}</div>`).addTo(map);
     });
     map.on('mouseenter', L, ()=>map.getCanvas().style.cursor='pointer');
     map.on('mouseleave', L, ()=>map.getCanvas().style.cursor='');
   }
   window.factorTable = (p)=>{
+    let den = 0;
+    for (const k of Object.keys(factors)) { const v = p[k+'_p']; if (app.weights[k]>0 && v!==null && v!==undefined) den += app.weights[k]; }
     const rows = Object.entries(factors).map(([k,m])=>{
       const raw = p[k], pct = p[k+'_p'];
       const has = pct!==null && pct!==undefined;
-      const contrib = has && app.weights[k]>0 ? (app.weights[k]*pct) : 0;
-      return `<tr><td>${m.label}</td><td class="n">${has? (+raw).toFixed(1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has? '+'+contrib.toFixed(2):''}</td></tr>`;
+      const w = app.weights[k]||0;
+      const contrib = has && w>0 && den>0 ? Math.round(100*w*pct/den) : 0;   // points of the final score (sums to the score)
+      const short = m.label.replace(/^На авто до: .*$/,'На авто до центра, 8:30').replace(/^Общественным транспортом до: .*$/,'Общ. транспортом до центра, 8:30');
+      return `<tr><td title="${m.label}">${short}</td><td class="n">${has? (+raw).toFixed(raw>=100?0:1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has&&w>0? '+'+contrib : (w>0?'—':'выкл')}</td></tr>`;
     }).join('');
-    return `<table><tr><th></th><th>знач.</th><th>лучше, чем</th><th>вклад</th></tr>${rows}</table><div style="font-size:11px;color:#666;margin-top:4px">«лучше, чем» — доля жилых гексов города, у которых этот показатель хуже</div>`;
+    return `<table><tr><th></th><th>значение</th><th>лучше, чем</th><th>баллов</th></tr>${rows}</table><div style="font-size:11px;color:#666;margin-top:6px">«лучше, чем» — доля жилых гексов города, где этот показатель хуже. «баллов» — вклад в итоговый балл с учётом твоих весов; сумма = балл.</div>`;
   };
   map.on('click', 'hex', e=>{
     const p = e.features[0].properties;
@@ -162,7 +172,7 @@ async function init(){
       return `<tr><td>${m.label}</td><td class="n">${has? (+raw).toFixed(1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has? '+'+contrib.toFixed(2):''}</td></tr>`;
     }).join('');
     const s = scoreOfProps(p);
-    new maplibregl.Popup({maxWidth:'360px'}).setLngLat(e.lngLat)
+    new maplibregl.Popup({maxWidth:'400px'}).setLngLat(e.lngLat)
       .setHTML(`<div class="popup"><b>Балл ${s===null?'—':Math.round(s*100)}</b> · <small>${p.district||''}${p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':''}</small>${factorTable(p)}</div>`)
       .addTo(map);
   });
