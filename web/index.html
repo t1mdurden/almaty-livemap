@@ -26,12 +26,20 @@
 <div id="map"></div>
 <div id="panel">
   <h1>Где в Алматы удобно жить</h1>
+  <div style="display:flex;gap:6px;margin:4px 0 8px;font-size:13px">
+    <label><input type="radio" name="view" value="places" checked> Микрорайоны</label>
+    <label><input type="radio" name="view" value="hex"> Гексы</label>
+    <label title="от зума 14"><input type="checkbox" id="bld" checked> Дома</label>
+  </div>
   <div id="factors"></div>
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
   <div id="status" style="font-size:12px;color:#666;margin-top:6px"></div>
-  <details id="topbox" style="margin-top:10px"><summary style="cursor:pointer"><b>Топ-20 гексов</b> при этих весах</summary>
+  <details id="placebox" open style="margin-top:10px"><summary style="cursor:pointer"><b>Микрорайоны</b> по баллу при этих весах</summary>
+    <ol id="places" style="padding-left:18px;margin:6px 0;font-size:13px;max-height:260px;overflow:auto"></ol>
+  </details>
+  <details id="topbox" style="margin-top:6px"><summary style="cursor:pointer"><b>Топ-20 гексов</b></summary>
     <ol id="top" style="padding-left:18px;margin:6px 0;font-size:13px"></ol>
-    <div style="font-size:11px;color:#666">Только гексы с населением ≥ 100 (Kontur 2023). Цена м² — по району, см. config/prices.yaml.</div>
+    <div style="font-size:11px;color:#666">Только гексы с населением ≥ 100 (Kontur 2023). Цена м² — медиана по району (krisha, см. дату в config/prices.yaml).</div>
   </details>
 </div>
 <script>
@@ -83,10 +91,13 @@ map.on('movestart', ()=>{ app.idle = false; });
 
 let hexIndex = {};
 async function init(){
-  const [factors, hexes] = await Promise.all([
+  const [factors, hexes, places, buildings] = await Promise.all([
     fetch(DATA+'factors.json').then(r=>r.json()),
-    fetch(DATA+'hexes.geojson').then(r=>r.json())
+    fetch(DATA+'hexes.geojson').then(r=>r.json()),
+    fetch(DATA+'places.geojson').then(r=>r.json()).catch(()=>({type:'FeatureCollection',features:[]})),
+    fetch(DATA+'buildings.geojson').then(r=>r.json()).catch(()=>({type:'FeatureCollection',features:[]}))
   ]);
+  app.places = places; app.buildings = buildings;
   app.factors = factors;
   const saved = loadWeights();
   for (const k of Object.keys(factors)) app.weights[k] = (k in saved) ? saved[k] : 1;
@@ -108,8 +119,39 @@ async function init(){
   }
 
   map.addSource('hex', {type:'geojson', data:hexes});
-  map.addLayer({id:'hex', type:'fill', source:'hex',
+  map.addLayer({id:'hex', type:'fill', source:'hex', layout:{visibility:'none'},
     paint:{'fill-color': colorExpr(), 'fill-opacity': 0.55, 'fill-outline-color':'rgba(0,0,0,0.08)'}});
+  map.addSource('bld', {type:'geojson', data:buildings});
+  map.addLayer({id:'bld', type:'fill', source:'bld', minzoom:14,
+    paint:{'fill-color': colorExpr(), 'fill-opacity': 0.85, 'fill-outline-color':'rgba(0,0,0,0.35)'}});
+  map.addSource('places', {type:'geojson', data:places});
+  map.addLayer({id:'places', type:'circle', source:'places', maxzoom:15,
+    paint:{'circle-color': colorExpr(), 'circle-opacity':0.85, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5,
+           'circle-radius': ['interpolate',['linear'],['zoom'], 10, ['+', 5, ['*', 0.25, ['sqrt', ['get','n_hex']]]], 14, ['+', 12, ['*', 0.8, ['sqrt', ['get','n_hex']]]]]}});
+  map.addLayer({id:'places-label', type:'symbol', source:'places', minzoom:11.5, maxzoom:15,
+    layout:{'text-field':['get','name'], 'text-size':11, 'text-offset':[0,1.2], 'text-anchor':'top', 'text-font':['Open Sans Regular','Arial Unicode MS Regular']},
+    paint:{'text-color':'#222', 'text-halo-color':'#fff', 'text-halo-width':1.2}});
+  document.querySelectorAll('input[name=view]').forEach(r=>r.addEventListener('change', e=>app.setView(e.target.value)));
+  document.getElementById('bld').addEventListener('change', e=>map.setLayoutProperty('bld','visibility', e.target.checked?'visible':'none'));
+  for (const L of ['places','bld']) {
+    map.on('click', L, e=>{
+      const p = e.features[0].properties; const s = scoreOfProps(p);
+      const head = L==='places' ? `<b>${p.name}</b> · балл ${s===null?'—':Math.round(s*100)} · ${p.n_hex} гекс.` :
+        `<b>${[p.street,p.house].filter(Boolean).join(', ')||p.name||'дом'}</b> · балл ${s===null?'—':Math.round(s*100)}${p.levels?' · '+p.levels+' эт.':''}${p.year?' · '+p.year:''}`;
+      new maplibregl.Popup({maxWidth:'380px'}).setLngLat(e.lngLat).setHTML(`<div class="popup">${head}${p.district?'<br><small>'+p.district+(p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':'')+'</small>':''}${factorTable(p)}</div>`).addTo(map);
+    });
+    map.on('mouseenter', L, ()=>map.getCanvas().style.cursor='pointer');
+    map.on('mouseleave', L, ()=>map.getCanvas().style.cursor='');
+  }
+  window.factorTable = (p)=>{
+    const rows = Object.entries(factors).map(([k,m])=>{
+      const raw = p[k], pct = p[k+'_p'];
+      const has = pct!==null && pct!==undefined;
+      const contrib = has && app.weights[k]>0 ? (app.weights[k]*pct) : 0;
+      return `<tr><td>${m.label}</td><td class="n">${has? (+raw).toFixed(1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has? '+'+contrib.toFixed(2):''}</td></tr>`;
+    }).join('');
+    return `<table><tr><th></th><th>знач.</th><th>лучше, чем</th><th>вклад</th></tr>${rows}</table><div style="font-size:11px;color:#666;margin-top:4px">«лучше, чем» — доля жилых гексов города, у которых этот показатель хуже</div>`;
+  };
   map.on('click', 'hex', e=>{
     const p = e.features[0].properties;
     const rows = Object.entries(factors).map(([k,m])=>{
@@ -120,13 +162,15 @@ async function init(){
     }).join('');
     const s = scoreOfProps(p);
     new maplibregl.Popup({maxWidth:'360px'}).setLngLat(e.lngLat)
-      .setHTML(`<div class="popup"><b>Балл ${s===null?'—':Math.round(s*100)}</b> · <small>${p.h3}</small><table><tr><th></th><th>знач.</th><th>перц.</th><th>вклад</th></tr>${rows}</table></div>`)
+      .setHTML(`<div class="popup"><b>Балл ${s===null?'—':Math.round(s*100)}</b> · <small>${p.district||''}${p.price_m2?' · ~'+Math.round(p.price_m2/1000)+' тыс ₸/м²':''}</small>${factorTable(p)}</div>`)
       .addTo(map);
   });
   map.on('mouseenter','hex',()=>map.getCanvas().style.cursor='pointer');
   map.on('mouseleave','hex',()=>map.getCanvas().style.cursor='');
   document.getElementById('status').textContent = `${hexes.features.length} гексов H3 res 9 · ${Object.keys(factors).length} фактор(ов)`;
-  renderTop();
+  renderTop(); renderPlaces();
+  let v = 'places'; try{ v = localStorage.getItem(LS+'.view') || 'places'; }catch(e){}
+  document.querySelector(`input[name=view][value="${v}"]`).checked = true; app.setView(v);
   app.ready = true;
 }
 
@@ -155,9 +199,25 @@ function renderTop(){
 let hexCentre = {};
 function h3ToLatLng(h){ return hexCentre[h] || [43.24, 76.92]; }
 
+app.setView = (v) => {
+  app.view = v;
+  if (map.getLayer('hex')) map.setLayoutProperty('hex','visibility', v==='hex'?'visible':'none');
+  for (const L of ['places','places-label']) if (map.getLayer(L)) map.setLayoutProperty(L,'visibility', v==='places'?'visible':'none');
+  try{ localStorage.setItem(LS+'.view', v); }catch(e){}
+};
+function renderPlaces(){
+  const el = document.getElementById('places'); if (!el || !app.places) return;
+  const rows = app.places.features.map(f=>[scoreOfProps(f.properties), f]).filter(r=>r[0]!==null).sort((a,b)=>b[0]-a[0]);
+  el.innerHTML = rows.slice(0,40).map(([s,f])=>{
+    const p = f.properties;
+    return `<li><a href="#" data-lon="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}" style="color:#1a4d8f;text-decoration:none"><b>${Math.round(s*100)}</b> ${p.name}</a> <small style="color:#666">${p.district?p.district.replace(' район',''):''}${p.price_m2?' · '+Math.round(p.price_m2/1000)+' тыс/м²':''}</small></li>`;
+  }).join('');
+  el.querySelectorAll('a').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); map.flyTo({center:[+a.dataset.lon, +a.dataset.lat], zoom:14.5}); }));
+}
 app.setWeight = (k, w) => {
   app.weights[k] = w; saveWeights(); app.idle = false;
-  clearTimeout(app._t); app._t = setTimeout(renderTop, 150);
+  for (const L of ['bld','places']) if (map.getLayer(L)) map.setPaintProperty(L, L==='places'?'circle-color':'fill-color', colorExpr());
+  clearTimeout(app._t); app._t = setTimeout(()=>{ renderTop(); renderPlaces(); }, 150);
   const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
   if (map.getLayer('hex')) map.setPaintProperty('hex','fill-color', colorExpr());
 };
