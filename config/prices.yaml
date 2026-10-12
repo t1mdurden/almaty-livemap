@@ -1,13 +1,36 @@
-# Средняя цена м² вторичного жилья по районам Алматы. Заполняет владелец руками с krisha.kz/analytics (или другого источника).
-# null = не заполнено; на карте такой район без цены. Единицы — тенге за м².
-date: null
-source: "krisha.kz/analytics"
+date: '2026-10-13'
+source: krisha.kz search pages, median asking price per m² over the first pages (default
+  sort)
 districts:
-  Алатауский район:    {price_m2: null}
-  Алмалинский район:   {price_m2: null}
-  Ауэзовский район:    {price_m2: null}
-  Бостандыкский район: {price_m2: null}
-  Жетысуский район:    {price_m2: null}
-  Медеуский район:     {price_m2: null}
-  Наурызбайский район: {price_m2: null}
-  Турксибский район:   {price_m2: null}
+  Алатауский район:
+    price_m2: 696341
+    n: 102
+    listed: 4606
+  Алмалинский район:
+    price_m2: 857226
+    n: 102
+    listed: 6121
+  Ауэзовский район:
+    price_m2: 747619
+    n: 103
+    listed: 6667
+  Бостандыкский район:
+    price_m2: 920000
+    n: 102
+    listed: 10716
+  Жетысуский район:
+    price_m2: 627810
+    n: 100
+    listed: 2222
+  Медеуский район:
+    price_m2: 917157
+    n: 102
+    listed: 4141
+  Наурызбайский район:
+    price_m2: 723611
+    n: 102
+    listed: 4547
+  Турксибский район:
+    price_m2: 609263
+    n: 100
+    listed: 3048

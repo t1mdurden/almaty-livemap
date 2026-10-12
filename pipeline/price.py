@@ -10,17 +10,20 @@ import pandas as pd, requests, yaml
 from .common import ROOT, RAW, log
 
 UA = "almaty-livemap/0.1 (development; permitted by Kolesa; github.com/t1mdurden/almaty-livemap)"
+# krisha district URL slugs (verified by page <title> 2026-10-13; the das[map.geo_id] query param is ignored by the server)
 SLUGS = {
-    "Алатауский район": "almaty-alatauskij", "Алмалинский район": "almaty-almalinskij", "Ауэзовский район": "almaty-auezovskiy",
+    "Алатауский район": "almaty-alatauskij", "Алмалинский район": "almaty-almalinskij", "Ауэзовский район": "almaty-aujezovskij",
     "Бостандыкский район": "almaty-bostandykskij", "Жетысуский район": "almaty-zhetysuskij", "Медеуский район": "almaty-medeuskij",
     "Наурызбайский район": "almaty-nauryzbajskiy", "Турксибский район": "almaty-turksibskij",
 }
-CARD = re.compile(r'<div class="a-card[^"]*"[^>]*data-id="(\d+)".*?a-card__title[^>]*>([^<]*)<.*?a-card__price[^>]*>([^<]*)<', re.S)
+CARD = re.compile(r'<div\s+data-id="(\d+)"[^>]*?(data-is-layout="1")?[^>]*class="a-card[^"]*"[^>]*>.*?a-card__title[^>]*>([^<]*)<.*?a-card__price[^>]*>([^<]*)', re.S)
 
 def parse(html):
     out = []
-    for aid, title, price in CARD.findall(html):
-        m = re.search(r"([\d.,]+)\s*м²", title); p = re.sub(r"[^\d]", "", price)
+    for aid, layout, title, price in CARD.findall(html):
+        if layout:                      # developer floor-plan cards ("от …") are not listings
+            continue
+        m = re.search(r"([\d.,]+)\s*м²", title); p = re.sub(r"[^\d]", "", price.replace("&nbsp;", ""))
         if not m or not p:
             continue
         area = float(m.group(1).replace(",", ".")); tng = int(p)
@@ -37,8 +40,8 @@ def main(pages=5):
             url = f"https://krisha.kz/prodazha/kvartiry/{slug}/?page={page}"
             r = requests.get(url, headers={"User-Agent": UA}, timeout=60)
             title = re.search(r"<title>([^<]*)", r.text)
-            if r.status_code != 200 or (title and "Казахстане" in title.group(1)):
-                log(f"{district}: HTTP {r.status_code} / slug fell back to all-Kazakhstan on page {page}, stop"); break
+            if r.status_code != 200 or not title or district.split()[0][:6] not in title.group(1):
+                log(f"{district}: HTTP {r.status_code}, title {title.group(1)[:40] if title else None!r} — slug did not resolve, stop"); break
             if page == 1:
                 m = re.findall(r'"count":(\d+)', r.text); counts[district] = int(m[1]) if len(m) > 1 else None
             cards = parse(r.text)
