@@ -17,6 +17,18 @@
   "better": "low",
   "period": "airkaz.org, зимы 2017–2020"
  },
+ "car_min": {
+  "label": "На авто до моих точек, 8:30",
+  "unit": "мин",
+  "better": "low",
+  "period": "2GIS"
+ },
+ "pt_min": {
+  "label": "На ОТ до моих точек, 8:30",
+  "unit": "мин",
+  "better": "low",
+  "period": "2GIS"
+ },
  "transit_proxy": {
   "label": "Маршрутов ОТ рядом",
   "unit": "шт в 400 м",

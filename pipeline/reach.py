@@ -37,8 +37,12 @@ def origins():
 
 def key():
     k = os.environ.get("TWOGIS_KEY")
+    if not k and (ROOT / ".env").exists():          # gitignored; value is never logged or written anywhere else
+        for line in (ROOT / ".env").read_text().splitlines():
+            if line.strip().startswith("TWOGIS_KEY="):
+                k = line.split("=", 1)[1].strip().strip('"').strip("'")
     if not k:
-        raise SystemExit("TWOGIS_KEY is not set in the environment")
+        raise SystemExit("TWOGIS_KEY is not set (environment or almaty-livemap/.env)")
     return k
 
 def next_weekday_0830() -> dt.datetime:
@@ -59,20 +63,23 @@ def plan():
     print(f"cached: car {len(list(CACHE.glob('car_*.json')))}, pt {len(list(CACHE.glob('pt_*.json')))}")
 
 def _post(url, k, body, params=None):
-    for attempt in range(4):
+    last = None
+    for attempt in range(6):
         r = requests.post(url, params={"key": k, **(params or {})}, json=body, headers={"User-Agent": UA}, timeout=60)
         if r.status_code == 200:
             return r.json()
-        if r.status_code in (429, 500, 502, 503):
-            time.sleep(3 * (attempt + 1)); continue
-        raise SystemExit(f"2GIS {url} → HTTP {r.status_code}: {r.text[:200]}")
-    raise SystemExit("2GIS: retries exhausted")
+        last = f"HTTP {r.status_code}: {r.text[:160]}"
+        if r.status_code in (429, 500, 502, 503, 504):
+            log(f"2GIS retry {attempt + 1}: {last}"); time.sleep(5 * (attempt + 1)); continue
+        raise SystemExit(f"2GIS {url} → {last}")
+    raise SystemExit(f"2GIS: retries exhausted, last {last}")
 
 def car():
     k, o, d = key(), origins(), destinations()
     t = next_weekday_0830()
-    for i in range(0, len(o), 25):   # 25 points per side is the standard-tariff limit
-        batch = [x for x in o[i:i + 25] if not (CACHE / f"car_{x[0]}.json").exists()]
+    B = 10                            # demo key: matrix at most 10×10 (HTTP 403 above that); standard tariff allows 25
+    for i in range(0, len(o), B):
+        batch = [x for x in o[i:i + B] if not (CACHE / f"car_{x[0]}.json").exists()]
         if not batch: continue
         body = {"points": [{"lat": la, "lon": lo} for _, la, lo in batch] + [{"lat": x["lat"], "lon": x["lon"]} for x in d],
                 "sources": list(range(len(batch))), "targets": list(range(len(batch), len(batch) + len(d))),
@@ -85,7 +92,7 @@ def car():
                 by_src.setdefault(r["source_id"], {})[r["target_id"] - len(batch)] = r.get("duration")
         for j, (c, _, _) in enumerate(batch):
             (CACHE / f"car_{c}.json").write_text(json.dumps({"h3": c, "sec": by_src.get(j, {}), "t": t.isoformat()}))
-        log(f"car: {min(i + 25, len(o))}/{len(o)} origins")
+        log(f"car: {min(i + B, len(o))}/{len(o)} origins")
         time.sleep(0.3)
 
 def pt():
@@ -106,7 +113,29 @@ def pt():
             sec[j] = min(durs) if durs else None
         f.write_text(json.dumps({"h3": c, "sec": sec, "t": t.isoformat()}))
         if n % 25 == 0: log(f"pt: {n}/{len(o)}")
-        time.sleep(0.2)
+        time.sleep(0.6)
+
+def pt_dm(limit=None):
+    """PT travel time via Distance Matrix (transport=public_transport) — a second budget when /public_transport/2.0 returns 429."""
+    k, o, d = key(), origins(), destinations()
+    t = next_weekday_0830(); B = 10; done = 0
+    todo = [x for x in o if not (CACHE / f"pt_{x[0]}.json").exists()]
+    for i in range(0, len(todo), B):
+        if limit and done >= limit: break
+        batch = todo[i:i + B]
+        body = {"points": [{"lat": la, "lon": lo} for _, la, lo in batch] + [{"lat": x["lat"], "lon": x["lon"]} for x in d],
+                "sources": list(range(len(batch))), "targets": list(range(len(batch), len(batch) + len(d))),
+                "transport": "public_transport", "start_time": t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "public_transport_params": {"transport": ["bus", "trolleybus", "metro", "shuttle_bus", "light_rail"]}}
+        res = _post(DM_URL, k, body, {"version": "2.0"})
+        by_src = {}
+        for r in res.get("routes", []):
+            if r.get("status", "OK") == "OK":
+                by_src.setdefault(r["source_id"], {})[r["target_id"] - len(batch)] = r.get("duration")
+        for j, (c, _, _) in enumerate(batch):
+            (CACHE / f"pt_{c}.json").write_text(json.dumps({"h3": c, "sec": by_src.get(j, {}), "t": t.isoformat(), "via": "distance_matrix"}))
+        done += len(batch); log(f"pt via DM: {done}/{len(todo)}")
+        time.sleep(0.5)
 
 def grid():
     d = destinations(); w = [x.get("weight", 1) for x in d]
@@ -141,4 +170,4 @@ def probe():
     print("PT:", type(res).__name__, len(routes), "routes; total_duration:", [r.get("total_duration") for r in routes][:3])
 
 if __name__ == "__main__":
-    {"plan": plan, "car": car, "pt": pt, "grid": grid, "probe": probe}[sys.argv[1] if len(sys.argv) > 1 else "plan"]()
+    {"plan": plan, "car": car, "pt": pt, "pt-dm": lambda: pt_dm(), "grid": grid, "probe": probe}[sys.argv[1] if len(sys.argv) > 1 else "plan"]()

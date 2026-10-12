@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ! grep -rn -E "key=[A-Za-z0-9]{20,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" pipeline/ web/ scripts/ || { echo "literal key found"; exit 1; }
 [ -f config/destinations.yaml ] || { echo "BLOCKED: config/destinations.yaml missing (owner)"; exit 2; }
-[ -n "${TWOGIS_KEY:-}" ] || { echo "BLOCKED: TWOGIS_KEY not set (owner)"; exit 2; }
+{ [ -n "${TWOGIS_KEY:-}" ] || grep -q "^TWOGIS_KEY=" .env 2>/dev/null; } || { echo "BLOCKED: TWOGIS_KEY not set (owner)"; exit 2; }
 uv run python -m pipeline.reach plan
 uv run python -m pipeline.reach grid && uv run python -m pipeline.build
 uv run python - <<'PY'
