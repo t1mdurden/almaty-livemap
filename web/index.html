@@ -29,6 +29,10 @@
   <div id="factors"></div>
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
   <div id="status" style="font-size:12px;color:#666;margin-top:6px"></div>
+  <details id="topbox" style="margin-top:10px"><summary style="cursor:pointer"><b>Топ-20 гексов</b> при этих весах</summary>
+    <ol id="top" style="padding-left:18px;margin:6px 0;font-size:13px"></ol>
+    <div style="font-size:11px;color:#666">Только гексы с населением ≥ 100 (Kontur 2023). Цена м² — по району, см. config/prices.yaml.</div>
+  </details>
 </div>
 <script>
 const DATA = '../data/out/';
@@ -83,7 +87,11 @@ async function init(){
   app.factors = factors;
   const saved = loadWeights();
   for (const k of Object.keys(factors)) app.weights[k] = (k in saved) ? saved[k] : 1;
-  for (const f of hexes.features) hexIndex[f.properties.h3] = f.properties;
+  for (const f of hexes.features) {
+    hexIndex[f.properties.h3] = f.properties;
+    const ring = f.geometry.coordinates[0];
+    hexCentre[f.properties.h3] = [ring.reduce((a,c)=>a+c[1],0)/ring.length, ring.reduce((a,c)=>a+c[0],0)/ring.length];
+  }
   app.hexes = hexIndex;
 
   const el = document.getElementById('factors');
@@ -115,11 +123,38 @@ async function init(){
   map.on('mouseenter','hex',()=>map.getCanvas().style.cursor='pointer');
   map.on('mouseleave','hex',()=>map.getCanvas().style.cursor='');
   document.getElementById('status').textContent = `${hexes.features.length} гексов H3 res 9 · ${Object.keys(factors).length} фактор(ов)`;
+  renderTop();
   app.ready = true;
 }
 
+function renderTop(){
+  const el = document.getElementById('top'); if (!el) return;
+  const rows = [];
+  for (const [h, p] of Object.entries(hexIndex)) {
+    if (!(p.pop_r8 >= 100)) continue;
+    const s = scoreOfProps(p); if (s === null) continue;
+    rows.push([s, h, p]);
+  }
+  rows.sort((a,b)=>b[0]-a[0]);
+  app.top = rows.slice(0,20).map(r=>r[1]);
+  el.innerHTML = rows.slice(0,20).map(([s,h,p])=>{
+    const price = p.price_m2 ? ` · ${Math.round(p.price_m2/1000)} тыс ₸/м²` : '';
+    const dist = p.district ? ` · ${p.district}` : '';
+    return `<li><a href="#" data-h="${h}" style="color:#1a4d8f;text-decoration:none">${Math.round(s*100)}</a>${dist}${price}</li>`;
+  }).join('');
+  el.querySelectorAll('a').forEach(a=>a.addEventListener('click', e=>{
+    e.preventDefault(); const h = a.dataset.h; const f = hexIndex[h];
+    const [lat, lon] = h3ToLatLng(h);
+    map.flyTo({center:[lon, lat], zoom: 14});
+  }));
+}
+// tiny h3 centre: we stored lat/lon? no — use the polygon centroid from the source features
+let hexCentre = {};
+function h3ToLatLng(h){ return hexCentre[h] || [43.24, 76.92]; }
+
 app.setWeight = (k, w) => {
   app.weights[k] = w; saveWeights(); app.idle = false;
+  clearTimeout(app._t); app._t = setTimeout(renderTop, 150);
   const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
   if (map.getLayer('hex')) map.setPaintProperty('hex','fill-color', colorExpr());
 };

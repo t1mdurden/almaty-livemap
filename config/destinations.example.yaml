@@ -1,0 +1,15 @@
+# Copy to config/destinations.yaml and put your own points. weight: how much this destination matters (1 = normal).
+# Times are computed for a weekday departure at 08:30 Almaty time.
+destinations:
+  - name: Работа
+    lat: 43.2380
+    lon: 76.9450
+    weight: 2
+  - name: Родители
+    lat: 43.2600
+    lon: 76.9000
+    weight: 1
+  - name: Аэропорт
+    lat: 43.3521
+    lon: 77.0405
+    weight: 0.5

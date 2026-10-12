@@ -279,52 +279,103 @@
         {
           "id": "s4-r01",
           "does": "config/destinations.yaml с точками владельца (имя, lat, lon, вес); пайплайн падает с понятным сообщением, если файла нет или в нём 0 точек",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "bash scripts/check-s4.sh without the file → \"BLOCKED: config/destinations.yaml missing (owner)\" exit 2; pipeline.reach plan without it → SystemExit naming config/destinations.example.yaml; example file committed"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s4.sh"
+          }
         },
         {
           "id": "s4-r02",
           "does": "`uv run python -m pipeline.reach plan` печатает смету: сколько единиц Distance Matrix и Routing нужно при текущем числе гексов и точек, сравнивает с лимитом демо-ключа и тарифом 10k, и НЕ делает запросов",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "uv run python -m pipeline.reach plan on the example points → \"origins (res 8, pop ≥ 100): 502 | destinations: 3 | pairs: 1506 … exceeds demo cap → 10k pack (6700 ₽/мес)\"; \"with ONE destination: 502 units per API → fits the demo key\"; 0 requests made"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "uv run python -m pipeline.reach plan"
+          }
         },
         {
           "id": "s4-r03",
           "does": "`uv run python -m pipeline.reach car` считает через 2GIS Distance Matrix (ключ только из TWOGIS_KEY) время на авто от центроидов res 8 до точек, кэширует каждый ответ в data/raw/reach/ и при перезапуске не повторяет готовые пары",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": []
+          "attempts": [
+            {
+              "what": "code written (pipeline/reach.py car/pt/grid, scripts/check-s4.sh); run refused by design without the key",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
         },
         {
           "id": "s4-r04",
           "does": "`uv run python -m pipeline.reach pt` считает через 2GIS Routing /public_transport/2.0 время на ОТ с отправлением в 8:30 ближайшего буднего дня, с тем же кэшем",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": []
+          "attempts": [
+            {
+              "what": "code written (pipeline/reach.py car/pt/grid, scripts/check-s4.sh); run refused by design without the key",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
         },
         {
           "id": "s4-r05",
           "does": "бесплатный базлайн без ключа: transit_proxy = число различных маршрутов ОТ (OSM route=bus/trolleybus) с остановкой в 400 м + бонус за метро в 800 м; присутствует в hexes.geojson даже без 2GIS",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "uv run python -m pipeline.transit → \"157 route relations, 470 stop hexes; routes_400m max 27; metro hexes 421\"; transit_proxy present in hexes.geojson for all 5582 hexes; over populated hexes 54% have ≥1 route within 400 m (OSM stop coverage is thin)"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "uv run python -m pipeline.transit && uv run python -m pipeline.build"
+          }
         },
         {
           "id": "s4-r06",
           "does": "res-8 значения car_min/pt_min разливаются на дочерние гексы res 9, в попапе видно «по центру родительского гекса»",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": []
+          "attempts": [
+            {
+              "what": "code written (pipeline/reach.py car/pt/grid, scripts/check-s4.sh); run refused by design without the key",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
         },
         {
           "id": "s4-r07",
           "does": "scripts/check-s4.sh: покрытие ≥90%, ≤5 мин у точки назначения, порядок Калкаман > Алатау по pt_min до центра, grep по коду не находит литерального ключа",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": [],
-          "is_check": true
+          "attempts": [
+            {
+              "what": "code written (pipeline/reach.py car/pt/grid, scripts/check-s4.sh); run refused by design without the key",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "is_check": true,
+          "blocker": "owner: TWOGIS_KEY (2GIS Platform Manager demo key) and config/destinations.yaml; 2GIS request/response shapes in pipeline/reach.py are unverified until the first keyed call"
+        }
+      ],
+      "shape": "res-8 populated cells (502) as origins; 2GIS Distance Matrix for car and /public_transport/2.0 for PT, one cached JSON per origin, weighted mean minutes spread to res-9 children; OSM route-count proxy as the keyless baseline",
+      "trap": "the demo key caps each API at 1000 units for life — 502 origins × 1 destination fits, ×3 does not; and OSM has stops for only ~half of populated hexes, so the proxy underrates whole districts",
+      "delete": [
+        "GTFS/r5py (no feed)",
+        "Yandex Matrix (20 800 ₽/мес, no storage right)",
+        "res-9 routing — 7× the units for no decision value"
+      ],
+      "force": [
+        {
+          "what": "only ONE destination on the demo key, or the 6 700 ₽ pack — the owner picks"
         }
       ]
     },
@@ -369,33 +420,63 @@
         {
           "id": "s6-r01",
           "does": "config/prices.yaml: 8 районов Алматы, средняя цена м² вторички и дата с krisha.kz/analytics, введены руками; гекс получает район через полигоны районов из OSM (admin_level=6) и price_m2",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": []
+          "attempts": [
+            {
+              "what": "pipeline/district.py + config/prices.yaml skeleton written; priced 0% until filled",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "blocker": "owner: 8 district prices in config/prices.yaml (krisha.kz/analytics); district polygons already assigned (OSM admin_level 6, 100% coverage, 8 districts)"
         },
         {
           "id": "s6-r02",
           "does": "панель «Топ-20» на странице: гексы с максимальным score при текущих весах, с районом, ценой м² и ссылкой «показать на карте»; пересчитывается при движении ползунка",
-          "status": "todo",
-          "evidence": null,
-          "attempts": []
+          "status": "passed",
+          "evidence": {
+            "how": "silver on localhost:8791/web/: #top has 20 li; top-1 8920e608137ffff → after setWeight(crime_rate,0)+setWeight(pm25_winter,0) top-1 8920e601237ffff; click flies the map to the hex (code), 2026-10-12"
+          },
+          "attempts": [],
+          "discharge": {
+            "rerun": "bash scripts/check-s6.sh"
+          }
         },
         {
           "id": "s6-r03",
           "does": "`gh repo create` + GitHub Pages из ветки main/папки web; data/out/hexes.geojson коммитится как артефакт; URL записан в README",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": []
+          "attempts": [
+            {
+              "what": "not executed on purpose (unattended run, outward-facing action)",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "blocker": "owner: publishing is a one-way door — run `gh repo create almaty-livemap --private --source . --push` (or public) and enable Pages from main /(root); then the URL goes into README"
         },
         {
           "id": "s6-r04",
           "does": "ручная проверка владельцем: Tim открывает URL на телефоне, двигает ползунки, топ-20 меняется, цена и дата видны — его слово закрывает слайс",
-          "status": "todo",
+          "status": "blocked",
           "evidence": null,
-          "attempts": [],
-          "is_check": true
+          "attempts": [
+            {
+              "what": "nothing to run yet",
+              "result": "cannot proceed without the owner"
+            }
+          ],
+          "is_check": true,
+          "blocker": "owner: needs the Pages URL from s6-r03 and his own walk on the phone"
         }
-      ]
+      ],
+      "shape": "districts from OSM admin_level 6 → district per hex; prices as a hand-filled YAML joined per district; Top-20 computed client-side over populated hexes; GitHub Pages serves web/ + data/out/hexes.geojson from the repo root",
+      "trap": "district-level price is the legal ceiling (krisha п. 5.3); a per-hex price would need listings, which is krisha-scout, not this repo",
+      "delete": [
+        "any price scraper",
+        "a backend for the top list"
+      ],
+      "force": []
     }
   ],
   "notSlices": [

@@ -16,5 +16,11 @@
   "unit": "мкг/м³",
   "better": "low",
   "period": "airkaz.org, зимы 2017–2020"
+ },
+ "transit_proxy": {
+  "label": "Маршрутов ОТ рядом",
+  "unit": "шт в 400 м",
+  "better": "high",
+  "period": "OSM, 2026-10"
  }
 }
