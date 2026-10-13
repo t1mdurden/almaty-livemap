@@ -43,12 +43,13 @@
   .popup td:first-child{padding-left:0}
   .popup td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .maplibregl-popup-content{padding:10px 14px 10px 12px;box-shadow:0 2px 12px rgba(0,0,0,.25);max-width:min(440px, 92vw);box-sizing:border-box}
-  @media (max-width:760px){#panel{width:calc(100% - 24px);max-height:46vh} #cmpbtn{top:auto!important;bottom:16px;right:12px!important} #cmphint{top:auto!important;bottom:56px;right:12px!important} #cmp{top:auto!important;bottom:56px;left:12px;right:12px!important;width:auto!important;max-height:60vh}}
+  @media (max-width:760px){#panel{width:calc(100% - 24px);max-height:46vh} #cmpbtn{top:auto!important;bottom:16px;right:12px!important} #metrobtn{top:auto!important;bottom:16px;right:200px!important} #cmphint{top:auto!important;bottom:56px;right:12px!important} #cmp{top:auto!important;bottom:56px;left:12px;right:12px!important;width:auto!important;max-height:60vh}}
 </style>
 </head>
 <body>
 <div id="map"></div>
-<button id="cmpbtn" style="position:absolute;top:12px;right:52px;z-index:2;font:inherit;font-size:13px;padding:6px 12px;border:1px solid #1a4d8f;color:#1a4d8f;background:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)">⇄ Сравнить две точки</button>
+<button id="metrobtn" title="Показать или скрыть линию метро" style="position:absolute;top:12px;right:52px;z-index:2;font:inherit;font-size:13px;padding:6px 12px;border:1px solid #c62828;color:#c62828;background:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)">Ⓜ Метро</button>
+<button id="cmpbtn" style="position:absolute;top:12px;right:150px;z-index:2;font:inherit;font-size:13px;padding:6px 12px;border:1px solid #1a4d8f;color:#1a4d8f;background:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)">⇄ Сравнить две точки</button>
 <div id="cmphint" style="display:none;position:absolute;top:52px;right:52px;z-index:2;max-width:320px;font-size:12px;color:#8a4b00;background:#fff6e5;border-radius:8px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.15)"></div>
 <div id="cmp" style="display:none;position:absolute;top:52px;right:52px;width:600px;max-width:calc(100% - 350px);max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.18);padding:10px 14px;box-sizing:border-box;font-size:12px"></div>
 <div id="panel">
@@ -203,13 +204,19 @@ async function init(){
   const HOUSES = false;   // private houses off: 164k points cost more than they tell; apartments keep footprints
   if (HOUSES) { map.on('moveend', loadHouses); loadHouses(); }
   // metro: line + stations with labels, always on top
+  // metro: drawn UNDER the microdistrict circles and buildings, muted; the Ⓜ button top-right toggles it
+  let metroOn = true; try{ metroOn = localStorage.getItem(LS+'.metro') !== 'off'; }catch(e){}
+  const metroVis = () => { for (const L of ['metro-line','metro-st','metro-label']) if (map.getLayer(L)) map.setLayoutProperty(L,'visibility', metroOn?'visible':'none'); const b=document.getElementById('metrobtn'); b.style.background = metroOn?'#fff':'#eee'; b.style.color = metroOn?'#c62828':'#888'; };
+  document.getElementById('metrobtn').addEventListener('click', ()=>{ metroOn = !metroOn; try{ localStorage.setItem(LS+'.metro', metroOn?'on':'off'); }catch(e){} metroVis(); });
   fetch(DATA+'metro.geojson'+BUST).then(r=>r.json()).then(metro=>{
     map.addSource('metro', {type:'geojson', data:metro});
-    map.addLayer({id:'metro-line', type:'line', source:'metro', filter:['==',['get','kind'],'line'], paint:{'line-color':'#c62828','line-width':['interpolate',['linear'],['zoom'],10,2,15,5],'line-opacity':0.85}});
-    map.addLayer({id:'metro-st', type:'circle', source:'metro', filter:['==',['get','kind'],'station'], paint:{'circle-radius':['interpolate',['linear'],['zoom'],10,4,15,9],'circle-color':'#fff','circle-stroke-color':'#c62828','circle-stroke-width':3}});
-    map.addLayer({id:'metro-label', type:'symbol', source:'metro', filter:['==',['get','kind'],'station'], minzoom:11,
-      layout:{'text-field':['concat','Ⓜ ',['get','name']], 'text-size':11, 'text-offset':[0,1.1], 'text-anchor':'top', 'text-font':['Open Sans Regular']},
-      paint:{'text-color':'#8e0000','text-halo-color':'#fff','text-halo-width':1.3}});
+    const under = map.getLayer('bld') ? 'bld' : undefined;      // below buildings → below places too
+    map.addLayer({id:'metro-line', type:'line', source:'metro', filter:['==',['get','kind'],'line'], paint:{'line-color':'#c62828','line-width':['interpolate',['linear'],['zoom'],10,3,15,7],'line-opacity':0.35}}, under);
+    map.addLayer({id:'metro-st', type:'circle', source:'metro', filter:['==',['get','kind'],'station'], paint:{'circle-radius':['interpolate',['linear'],['zoom'],10,3,15,7],'circle-color':'#fff','circle-stroke-color':'#c62828','circle-stroke-width':2,'circle-opacity':0.9,'circle-stroke-opacity':0.6}}, under);
+    map.addLayer({id:'metro-label', type:'symbol', source:'metro', filter:['==',['get','kind'],'station'], minzoom:12.5,
+      layout:{'text-field':['concat','Ⓜ ',['get','name']], 'text-size':10, 'text-offset':[0,0.9], 'text-anchor':'top', 'text-font':['Open Sans Regular'], 'text-optional':true},
+      paint:{'text-color':'#8e0000','text-halo-color':'#fff','text-halo-width':1.2, 'text-opacity':0.8}}, under);
+    metroVis();
   }).catch(()=>{});
   map.addSource('places', {type:'geojson', data:places});
   map.addLayer({id:'places', type:'circle', source:'places', maxzoom:15,
