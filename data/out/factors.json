@@ -43,6 +43,20 @@
   "better": "low",
   "period": "2GIS"
  },
+ "pt_direct": {
+  "label": "Маршрутов до центра без пересадки в 400 м",
+  "unit": "маршр.",
+  "better": "high",
+  "period": "2GIS Places, 2026-10"
+ },
+ "stop_walk_min": {
+  "label": "Пешком до ближайшей остановки",
+  "unit": "мин",
+  "better": "low",
+  "period": "2GIS Places, 2026-10",
+  "default": 0,
+  "fact": true
+ },
  "transit_proxy": {
   "label": "Маршрутов автобуса/троллейбуса в 400 м",
   "unit": "маршр.",

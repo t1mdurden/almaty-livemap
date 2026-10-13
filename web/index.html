@@ -149,7 +149,7 @@ async function init(){
   window.SHORT = {metro_min:'Метро пешком', crime_rate:'Уличная преступность', pm25_winter:'Чистый воздух зимой', car_min:'На авто до центра в 8:30',
                  pt_min:'На автобусе/метро до центра в 8:30', transit_proxy:'Остановки и маршруты рядом', cat15:'Магазины, школы, аптеки, парки в 1 км'};
   window.weightWord = (w)=> w<=0 ? 'не учитывать' : w<1 ? 'слабо' : w===1 ? 'обычно' : w<=2 ? 'важно' : 'очень важно';
-  Object.assign(window.SHORT, {dtp_300m:'ДТП в 300 м за 3 года', pm25_recent:'PM2.5 за 7 дней (живые датчики)', price_m2_zhk:'Цена м² в ЖК рядом', price_m2_hex:'Цена м² по объявлениям рядом'});
+  Object.assign(window.SHORT, {pt_direct:'Маршрутов до центра без пересадки', stop_walk_min:'Пешком до остановки', car_ev_min:'Из центра домой на авто в 18:30', dtp_300m:'ДТП в 300 м за 3 года', pm25_recent:'PM2.5 за 7 дней (живые датчики)', price_m2_zhk:'Цена м² в ЖК рядом', price_m2_hex:'Цена м² по объявлениям рядом'});
   const el = document.getElementById('factors'); const fel = document.getElementById('facts');
   el.innerHTML = ''; fel.innerHTML = '';
   for (const [k,m] of Object.entries(factors)) {
@@ -202,6 +202,15 @@ async function init(){
   };
   const HOUSES = false;   // private houses off: 164k points cost more than they tell; apartments keep footprints
   if (HOUSES) { map.on('moveend', loadHouses); loadHouses(); }
+  // metro: line + stations with labels, always on top
+  fetch(DATA+'metro.geojson'+BUST).then(r=>r.json()).then(metro=>{
+    map.addSource('metro', {type:'geojson', data:metro});
+    map.addLayer({id:'metro-line', type:'line', source:'metro', filter:['==',['get','kind'],'line'], paint:{'line-color':'#c62828','line-width':['interpolate',['linear'],['zoom'],10,2,15,5],'line-opacity':0.85}});
+    map.addLayer({id:'metro-st', type:'circle', source:'metro', filter:['==',['get','kind'],'station'], paint:{'circle-radius':['interpolate',['linear'],['zoom'],10,4,15,9],'circle-color':'#fff','circle-stroke-color':'#c62828','circle-stroke-width':3}});
+    map.addLayer({id:'metro-label', type:'symbol', source:'metro', filter:['==',['get','kind'],'station'], minzoom:11,
+      layout:{'text-field':['concat','Ⓜ ',['get','name']], 'text-size':11, 'text-offset':[0,1.1], 'text-anchor':'top', 'text-font':['Open Sans Regular']},
+      paint:{'text-color':'#8e0000','text-halo-color':'#fff','text-halo-width':1.3}});
+  }).catch(()=>{});
   map.addSource('places', {type:'geojson', data:places});
   map.addLayer({id:'places', type:'circle', source:'places', maxzoom:15,
     paint:{'circle-color': colorExpr(), 'circle-opacity':0.85, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5,
@@ -286,7 +295,7 @@ async function init(){
     const facts = Object.entries(factors).filter(([k,m])=>m.fact && !(app.weights[k]>0) && p[k]!==null && p[k]!==undefined).map(([k,m])=>`<span style="display:inline-block;background:#f1f3f5;border-radius:6px;padding:2px 6px;margin:3px 4px 0 0">${SHORT[k]||m.label}: <b>${k.startsWith('price')? Math.round(p[k]/1000)+' тыс ₸/м²' : (+p[k]).toFixed(p[k]>=100?0:1)+' '+m.unit}</b></span>`).join('');
     const zhk = (p.zhk ? `<div style="margin-top:4px">ЖК <b>${p.zhk}</b>${p.zcls?' · '+p.zcls:''}${p.zdev?' · '+p.zdev:''}${p.zpm?' · ~'+Math.round(p.zpm/1000)+' тыс ₸/м² на вторичке':''}</div>` : '')
       + (p.lp ? `<div style="margin-top:2px">Объявления по этому дому: <b>~${Math.round(p.lp/1000)} тыс ₸/м²</b> (${p.ln} шт., krisha)</div>` : '')
-      + (p.route_list ? `<div style="margin-top:2px;font-size:11px;color:#444">Маршруты в 400 м (2GIS): ${p.route_list}${p.stops_400m?' · остановок: '+p.stops_400m:''}</div>` : '')
+      + (p.route_list ? `<div style="margin-top:4px;font-size:11px;color:#444;background:#f6f8fa;border-radius:6px;padding:4px 6px"><b>Общественный транспорт.</b> Остановок в 400 м: ${p.stops_400m||0}${p.stop_walk_min!=null?' · до ближайшей '+p.stop_walk_min+' мин пешком':''} · маршрутов: ${p.routes_400m}${p.trolleybus_400m?' (троллейбусов '+p.trolleybus_400m+')':''}<br>До центра без пересадки: ${p.pt_direct||0}${p.direct_list?' — '+p.direct_list:''}<br>Все маршруты: ${p.route_list}</div>` : '')
       + ((p.car_min_est||p.car_ev_min_est) ? `<div style="margin-top:2px;font-size:11px;color:#8a4b00">время на авто здесь — оценка по соседним ячейкам (лимит 2GIS на месяц исчерпан)</div>` : '');
     return `${zhk}<table><tr><th></th><th>значение</th><th>лучше, чем</th><th>баллов</th></tr>${rows}</table>${facts?'<div style="margin-top:6px">'+facts+'</div>':''}<div style="font-size:11px;color:#666;margin-top:6px">«лучше, чем» — доля жилых гексов города, где этот показатель хуже. «баллов» — вклад в итоговый балл с учётом твоих весов; сумма = балл.</div>`;
   };

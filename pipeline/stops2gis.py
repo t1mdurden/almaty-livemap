@@ -76,15 +76,31 @@ def grid():
         by_hex[c]["stops"] += 1; by_hex[c]["routes"] |= set(r.routes)
     metro = pd.read_parquet(RAW / "metro_stations.parquet")
     metro_cells = {h3.latlng_to_cell(r.lat, r.lon, 9) for r in metro.itertuples()}
+    # routes that serve the centre: any route with a stop within ~600 m of the destination
+    import yaml
+    dest = yaml.safe_load((OUT.parent.parent / "config" / "destinations.yaml").read_text())["destinations"][0]
+    centre_routes = set()
+    for r in sdf.itertuples():
+        if _hav(r.lat, r.lon, dest["lat"], dest["lon"]) <= 600: centre_routes |= {x[1] for x in r.routes}
+    log(f"routes serving the centre ({dest['name']}): {len(centre_routes)}")
+    stop_pts = list(zip(sdf.lat, sdf.lon))
     g = pd.read_parquet(OUT / "grid.parquet"); out = []
-    for c in g.h3:
-        refs, n = set(), 0
+    for row in g.itertuples():
+        c = row.h3
+        refs, n, refs300 = set(), 0, set()
         for kk in h3.grid_disk(c, 2):
             if kk in by_hex:
                 refs |= by_hex[kk]["routes"]; n += by_hex[kk]["stops"]
+        for kk in h3.grid_disk(c, 1):
+            if kk in by_hex: refs300 |= by_hex[kk]["routes"]
         has_metro = any(kk in metro_cells for kk in h3.grid_disk(c, 4))
         names = sorted({x[1] for x in refs}, key=lambda x: (len(x), x))
-        out.append({"h3": c, "routes_400m": len(names), "stops_400m": n, "metro_800m": int(has_metro),
+        direct = sorted({x[1] for x in refs} & centre_routes, key=lambda x: (len(x), x))
+        trolley = sum(1 for x in refs if x[0] == "trolleybus")
+        d_stop = min((_hav(row.lat, row.lon, a, b) for a, b in stop_pts if abs(a - row.lat) < 0.02 and abs(b - row.lon) < 0.03), default=None)
+        out.append({"h3": c, "routes_400m": len(names), "routes_250m": len({x[1] for x in refs300}), "stops_400m": n, "metro_800m": int(has_metro),
+                    "trolleybus_400m": trolley, "pt_direct": len(direct), "direct_list": ", ".join(direct[:20]),
+                    "stop_walk_min": round(d_stop * 1.3 / (5000 / 60), 1) if d_stop is not None else None,
                     "transit_proxy": len(names) + (8 if has_metro else 0), "route_list": ", ".join(names[:25])})
     df = pd.DataFrame(out); df.to_parquet(LAYERS / "transit.parquet", index=False)
     pop = pd.read_parquet(LAYERS / "pop.parquet"); m = df.merge(pop, on="h3"); m = m[m.pop_r8 >= 100]

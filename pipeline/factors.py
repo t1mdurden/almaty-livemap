@@ -7,6 +7,8 @@ FACTORS = {
     "car_min":       {"label": "На авто до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "pt_min":        {"label": "Общественным транспортом до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "car_ev_min":    {"label": "На авто из моих точек домой, будни 18:30", "unit": "мин", "better": "low", "period": "2GIS"},
+    "pt_direct":     {"label": "Маршрутов до центра без пересадки в 400 м", "unit": "маршр.", "better": "high", "period": "2GIS Places, 2026-10"},
+    "stop_walk_min": {"label": "Пешком до ближайшей остановки", "unit": "мин", "better": "low", "period": "2GIS Places, 2026-10", "default": 0, "fact": True},
     "transit_proxy": {"label": "Маршрутов автобуса/троллейбуса в 400 м", "unit": "маршр.", "better": "high", "period": "2GIS Places по остановкам OSM, 2026-10"},
     "cat15":         {"label": "Инфраструктура в 1 км", "unit": "из 6", "better": "high", "period": "OSM, 2026-10"},
     # facts: shown in the card, weight 0 unless the user ticks them
