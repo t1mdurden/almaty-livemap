@@ -36,15 +36,22 @@ def origins():
     cells = sorted(built.loc[built.built == 1, "h3"])
     return [(c, *h3.cell_to_latlng(c)) for c in cells]
 
-def key():
-    k = os.environ.get("TWOGIS_KEY")
-    if not k and (ROOT / ".env").exists():          # gitignored; value is never logged or written anywhere else
+def keys():
+    """All keys: TWOGIS_KEY, TWOGIS_KEY2, TWOGIS_KEY3… from the environment or the gitignored .env. Never logged."""
+    found = {}
+    for k, v in os.environ.items():
+        if k.startswith("TWOGIS_KEY"): found[k] = v
+    if (ROOT / ".env").exists():
         for line in (ROOT / ".env").read_text().splitlines():
-            if line.strip().startswith("TWOGIS_KEY="):
-                k = line.split("=", 1)[1].strip().strip('"').strip("'")
-    if not k:
+            if line.strip().startswith("TWOGIS_KEY"):
+                k, v = line.split("=", 1); found.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    ks = [found[k] for k in sorted(found) if found[k]]
+    if not ks:
         raise SystemExit("TWOGIS_KEY is not set (environment or almaty-livemap/.env)")
-    return k
+    return ks
+
+def key():
+    return keys()[0]
 
 def next_weekday_0830() -> dt.datetime:
     """Next weekday 08:30 Almaty time (UTC+5) as an aware datetime."""
@@ -61,17 +68,26 @@ def plan():
     print(f"cached: car {len([f for f in CACHE.glob('car_*.json') if not f.name.startswith('car_ev_')])}, pt {len(list(CACHE.glob('pt_*.json')))}, car evening {len(list(CACHE.glob('car_ev_*.json')))}")
     print(f"evening direction (centre → cell, 18:30) costs another {pairs} Distance Matrix units")
 
+_blocked = set()   # keys that answered "key is blocked" (monthly cap) in this run
+
 def _post(url, k, body, params=None):
+    """POST with the first key that is not blocked; on a monthly block switch to the next key (TWOGIS_KEY2…)."""
     last = None
-    for attempt in range(6):
-        r = requests.post(url, params={"key": k, **(params or {})}, json=body, headers={"User-Agent": UA}, timeout=60)
-        if r.status_code == 200:
-            return r.json()
-        last = f"HTTP {r.status_code}: {r.text[:160]}"
-        if r.status_code in (429, 500, 502, 503, 504):
-            log(f"2GIS retry {attempt + 1}: {last}"); time.sleep(65 if r.status_code == 429 else 5 * (attempt + 1)); continue
-        raise SystemExit(f"2GIS {url} → {last}")
-    raise SystemExit(f"2GIS: retries exhausted, last {last}")
+    for key_ in [k] + [x for x in keys() if x != k]:
+        if key_ in _blocked: continue
+        for attempt in range(6):
+            r = requests.post(url, params={"key": key_, **(params or {})}, json=body, headers={"User-Agent": UA}, timeout=60)
+            if r.status_code == 200:
+                return r.json()
+            last = f"HTTP {r.status_code}: {r.text[:160]}"
+            if r.status_code == 403 and "blocked" in r.text:
+                _blocked.add(key_); log(f"2GIS: key #{keys().index(key_) + 1} is blocked for the month, switching"); break
+            if r.status_code in (429, 500, 502, 503, 504):
+                log(f"2GIS retry {attempt + 1}: {last}"); time.sleep(65 if r.status_code == 429 else 5 * (attempt + 1)); continue
+            raise SystemExit(f"2GIS {url} → {last}")
+        else:
+            raise SystemExit(f"2GIS: retries exhausted, last {last}")
+    raise SystemExit(f"2GIS: every key is blocked for the month ({len(keys())} keys); last {last}")
 
 def car():
     k, o, d = key(), origins(), destinations()
