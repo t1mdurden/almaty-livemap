@@ -47,6 +47,10 @@ def main():
         return best
     # apartments: polygons
     apts = json.loads((RAW / "apartments.json").read_text())["elements"]
+    extra = RAW / "apartments_extra.json"          # residential/dormitory/yes with ≥3 levels or flats — Soviet panel housing is often tagged this way
+    if extra.exists():
+        seen = {e["id"] for e in apts}
+        apts += [e for e in json.loads(extra.read_text())["elements"] if e["id"] not in seen]
     feats = []
     for e in apts:
         g = e.get("geometry")
