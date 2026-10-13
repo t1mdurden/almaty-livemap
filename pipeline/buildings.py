@@ -28,6 +28,19 @@ def main():
         if t.get("building:levels"): out["lv"] = t["building:levels"]
         if t.get("name"): out["n"] = t["name"]
         return out
+    # nearest ЖК within 120 m (krisha complexes), if crawled
+    zhk = []
+    cf = RAW / "complexes.parquet"
+    if cf.exists():
+        cdf = pd.read_parquet(cf).dropna(subset=["lat", "lon"])
+        zhk = [(r.lat, r.lon, r.title.replace(" Алматы", ""), r.housing_class, r.developer, r.sec_price_m2) for r in cdf.itertuples()]
+    def nearest_zhk(lat, lon):
+        best = None
+        for la, lo, name, cls, dev, pm in zhk:
+            if abs(la - lat) > 0.002 or abs(lo - lon) > 0.003: continue
+            dd = haversine_m(lat, lon, la, lo)
+            if dd <= 120 and (best is None or dd < best[0]): best = (dd, name, cls, dev, pm)
+        return best
     # apartments: polygons
     apts = json.loads((RAW / "apartments.json").read_text())["elements"]
     feats = []
@@ -37,10 +50,12 @@ def main():
         lat = sum(p["lat"] for p in g) / len(g); lon = sum(p["lon"] for p in g) / len(g)
         pr = props(e, lat, lon)
         if pr is None: continue
+        z = nearest_zhk(lat, lon)
+        if z: pr.update({"zhk": z[1], "zcls": z[2], "zdev": z[3], "zpm": None if pd.isna(z[4]) else int(z[4])})
         feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[p["lon"], p["lat"]] for p in g]]}, "properties": pr})
     (OUT / "buildings.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False, separators=(",", ":")))
     log(f"apartments: {len(feats)} footprints, {round((OUT/'buildings.geojson').stat().st_size/1e6,1)} MB")
-    # houses: points
+    return
     hs = json.loads((RAW / "houses_center.json").read_text())["elements"]
     pts = []
     for e in hs:

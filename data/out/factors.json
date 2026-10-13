@@ -17,14 +17,22 @@
   "better": "low",
   "period": "airkaz.org, зимы 2017–2020"
  },
+ "pm25_recent": {
+  "label": "PM2.5 за последние 7 дней",
+  "unit": "мкг/м³",
+  "better": "low",
+  "period": "AirGradient+airkaz, 138 датчиков, 2 ч снимков до 2026-10-13 00:00",
+  "default": 0,
+  "fact": true
+ },
  "car_min": {
-  "label": "На авто до: Центр (Абая/Назарбаева), будни 8:30",
+  "label": "На авто до: Центр (Абая/Байтурсынова), будни 8:30",
   "unit": "мин",
   "better": "low",
   "period": "2GIS"
  },
  "pt_min": {
-  "label": "Общественным транспортом до: Центр (Абая/Назарбаева), будни 8:30",
+  "label": "Общественным транспортом до: Центр (Абая/Байтурсынова), будни 8:30",
   "unit": "мин",
   "better": "low",
   "period": "2GIS"
@@ -40,5 +48,21 @@
   "unit": "из 6",
   "better": "high",
   "period": "OSM, 2026-10"
+ },
+ "dtp_300m": {
+  "label": "ДТП в 300 м за 2023–2025",
+  "unit": "ДТП",
+  "better": "low",
+  "period": "gis.kgp.kz",
+  "default": 0,
+  "fact": true
+ },
+ "price_m2_zhk": {
+  "label": "Цена м² в ЖК рядом",
+  "unit": "₸/м²",
+  "better": "low",
+  "period": "krisha.kz ЖК, 2026-10-13",
+  "default": 0,
+  "fact": true
  }
 }

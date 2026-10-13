@@ -42,7 +42,10 @@ def main():
         props = {k: (None if pd.isna(v) else v) for k, v in r.items() if k not in ("lat", "lon")}
         feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [ring]}, "properties": props})
     (OUT / "hexes.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False))
-    (OUT / "factors.json").write_text(json.dumps({k: labels[k] for k in present}, ensure_ascii=False, indent=1))
+    meta = {k: labels[k] for k in present}
+    if (OUT / "air_now_meta.json").exists() and "pm25_recent" in meta:
+        am = json.loads((OUT / "air_now_meta.json").read_text()); meta["pm25_recent"]["period"] = f"AirGradient+airkaz, {am['sensors']} датчиков, {am['hours']} ч снимков до {am['to'][:16]}"
+    (OUT / "factors.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1))
     log(f"hexes.geojson: {len(feats)} features, factors {present}, {round((OUT/'hexes.geojson').stat().st_size/1e6,1)} MB")
 
 if __name__ == "__main__":

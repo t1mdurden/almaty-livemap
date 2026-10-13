@@ -66,6 +66,7 @@
 
   <div style="font-size:12px;color:#555;margin:2px 0 4px"><b>Важность факторов.</b> Тяни вправо — фактор сильнее влияет на балл, влево до нуля — не учитывается.</div>
   <div id="factors"></div>
+  <details id="factbox" style="margin-top:6px;font-size:13px"><summary style="cursor:pointer"><b>Факты</b> — в карточке, в балл не входят, пока не отметишь</summary><div id="facts"></div></details>
   <div class="legend"><span>хуже</span><div class="bar"></div><span>лучше</span></div>
   <details style="font-size:11px;color:#666;margin-top:6px"><summary style="cursor:pointer">Источники данных</summary><div id="sources"></div><div id="status"></div></details>
   <details id="placebox" open style="margin-top:10px"><summary style="cursor:pointer"><b>Лучшие микрорайоны</b> при этих весах</summary>
@@ -137,7 +138,7 @@ async function init(){
   app.places = places; app.buildings = buildings; app.houses = null;
   app.factors = factors;
   const saved = loadWeights();
-  for (const k of Object.keys(factors)) app.weights[k] = (k in saved) ? saved[k] : 1;
+  for (const [k,m] of Object.entries(factors)) app.weights[k] = (k in saved) ? saved[k] : (m.default ?? 1);
   for (const f of hexes.features) {
     hexIndex[f.properties.h3] = f.properties;
     const ring = f.geometry.coordinates[0];
@@ -148,9 +149,16 @@ async function init(){
   window.SHORT = {metro_min:'Метро пешком', crime_rate:'Уличная преступность', pm25_winter:'Чистый воздух зимой', car_min:'На авто до центра в 8:30',
                  pt_min:'На автобусе/метро до центра в 8:30', transit_proxy:'Остановки и маршруты рядом', cat15:'Магазины, школы, аптеки, парки в 1 км'};
   window.weightWord = (w)=> w<=0 ? 'не учитывать' : w<1 ? 'слабо' : w===1 ? 'обычно' : w<=2 ? 'важно' : 'очень важно';
-  const el = document.getElementById('factors');
-  el.innerHTML = '';
+  Object.assign(window.SHORT, {dtp_300m:'ДТП в 300 м за 3 года', pm25_recent:'PM2.5 за 7 дней (живые датчики)', price_m2_zhk:'Цена м² в ЖК рядом', price_m2_hex:'Цена м² по объявлениям рядом'});
+  const el = document.getElementById('factors'); const fel = document.getElementById('facts');
+  el.innerHTML = ''; fel.innerHTML = '';
   for (const [k,m] of Object.entries(factors)) {
+    if (m.fact) {
+      const d = document.createElement('div'); d.className='f';
+      d.innerHTML = `<label title="${m.label} — ${m.period}"><span>${SHORT[k]||m.label}</span><span><input type="checkbox" data-k="${k}" ${app.weights[k]>0?'checked':''}> учитывать</span></label>`;
+      d.querySelector('input').addEventListener('change', e=>app.setWeight(k, e.target.checked ? 1 : 0));
+      fel.appendChild(d); continue;
+    }
     const d = document.createElement('div'); d.className='f';
     d.innerHTML = `<label title="${m.label} — ${m.period}"><span>${SHORT[k]||m.label}</span><b class="w" style="font-weight:600;color:#1a4d8f;white-space:nowrap">${weightWord(app.weights[k])}</b></label>
       <input type="range" min="0" max="3" step="0.25" value="${app.weights[k]}" data-k="${k}" aria-label="${SHORT[k]||m.label}">`;
@@ -258,7 +266,7 @@ async function init(){
       const raw = e.features[0].properties;
       if (L === 'places') { openCard(e.lngLat, raw.name, raw); return; }
       const h = hexIndex[raw.h3] || {};
-      const p = {...h, metro_min: raw.mm, metro_min_p: raw.mp};
+      const p = {...h, metro_min: raw.mm, metro_min_p: raw.mp, zhk: raw.zhk, zcls: raw.zcls, zdev: raw.zdev, zpm: raw.zpm};
       openCard(e.lngLat, (raw.a || raw.n || (L==='bld' ? 'Многоквартирный дом' : 'Дом')) + (raw.lv ? ' · '+raw.lv+' эт.' : ''), p);
     });
     map.on('mouseenter', L, ()=>map.getCanvas().style.cursor='pointer');
@@ -267,7 +275,7 @@ async function init(){
   window.factorTable = (p)=>{
     let den = 0;
     for (const k of Object.keys(factors)) { const v = p[k+'_p']; if (app.weights[k]>0 && v!==null && v!==undefined) den += app.weights[k]; }
-    const rows = Object.entries(factors).map(([k,m])=>{
+    const rows = Object.entries(factors).filter(([k,m])=>!m.fact || app.weights[k]>0).map(([k,m])=>{
       const raw = p[k], pct = p[k+'_p'];
       const has = pct!==null && pct!==undefined;
       const w = app.weights[k]||0;
@@ -275,7 +283,9 @@ async function init(){
       const short = (window.SHORT && SHORT[k]) || m.label;
       return `<tr><td title="${m.label}">${short}</td><td class="n">${has? (+raw).toFixed(raw>=100?0:1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has&&w>0? '+'+contrib : (w>0?'—':'выкл')}</td></tr>`;
     }).join('');
-    return `<table><tr><th></th><th>значение</th><th>лучше, чем</th><th>баллов</th></tr>${rows}</table><div style="font-size:11px;color:#666;margin-top:6px">«лучше, чем» — доля жилых гексов города, где этот показатель хуже. «баллов» — вклад в итоговый балл с учётом твоих весов; сумма = балл.</div>`;
+    const facts = Object.entries(factors).filter(([k,m])=>m.fact && !(app.weights[k]>0) && p[k]!==null && p[k]!==undefined).map(([k,m])=>`<span style="display:inline-block;background:#f1f3f5;border-radius:6px;padding:2px 6px;margin:3px 4px 0 0">${SHORT[k]||m.label}: <b>${k.startsWith('price')? Math.round(p[k]/1000)+' тыс ₸/м²' : (+p[k]).toFixed(p[k]>=100?0:1)+' '+m.unit}</b></span>`).join('');
+    const zhk = p.zhk ? `<div style="margin-top:4px">ЖК <b>${p.zhk}</b>${p.zcls?' · '+p.zcls:''}${p.zdev?' · '+p.zdev:''}${p.zpm?' · ~'+Math.round(p.zpm/1000)+' тыс ₸/м² на вторичке':''}</div>` : '';
+    return `${zhk}<table><tr><th></th><th>значение</th><th>лучше, чем</th><th>баллов</th></tr>${rows}</table>${facts?'<div style="margin-top:6px">'+facts+'</div>':''}<div style="font-size:11px;color:#666;margin-top:6px">«лучше, чем» — доля жилых гексов города, где этот показатель хуже. «баллов» — вклад в итоговый балл с учётом твоих весов; сумма = балл.</div>`;
   };
   map.on('click', 'hex', e=>{ openCard(e.lngLat, 'Гекс', e.features[0].properties); });
   map.on('click', 'hex-legacy-unused', e=>{
@@ -394,6 +404,7 @@ app.setWeight = (k, w) => {
   clearTimeout(app._t); app._t = setTimeout(()=>{ renderTop(); renderPlaces(); if (window.rescoreBuildings) rescoreBuildings(); }, 200);
   const inp = document.querySelector(`input[data-k="${k}"]`); if (inp && parseFloat(inp.value)!==w) inp.value = w;
   const ww = inp && inp.parentElement.querySelector('.w'); if (ww && window.weightWord) ww.textContent = weightWord(w);
+  if (inp && inp.type === 'checkbox') inp.checked = w > 0;
   if (map.getLayer('hex')) map.setPaintProperty('hex','fill-color', colorExpr());
 };
 app.scoreOf = (h3) => hexIndex[h3] ? scoreOfProps(hexIndex[h3]) : undefined;

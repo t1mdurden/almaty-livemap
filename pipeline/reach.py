@@ -13,12 +13,13 @@ import h3, pandas as pd, requests, yaml
 from .common import ROOT, RAW, OUT, LAYERS, UA, log
 
 CFG = ROOT / "config" / "destinations.yaml"
-CACHE = RAW / "reach"; CACHE.mkdir(exist_ok=True)
-DEMO_CAP = 1000                 # per API, docs.2gis.com platform-manager pricing, read 2026-10-12
+CACHE = RAW / "reach9"; CACHE.mkdir(exist_ok=True)      # res-8 run of 2026-10-13 kept in data/raw/reach/
+DEMO_CAP = 1000                 # requests per month per API (platform manager, 2026-10-13); demo per-minute limit is 10 → one request per 6.5 s
+DM_PACE_S = 6.5
 PACK10K_RUB = 6700
 DM_URL = "https://routing.api.2gis.com/get_dist_matrix"
 PT_URL = "https://routing.api.2gis.com/public_transport/2.0"
-RES = 8
+RES = 9     # 2026-10-13: 2GIS bills per request (10 origins per matrix), so every built hex gets its own time
 
 def destinations():
     if not CFG.exists():
@@ -28,12 +29,12 @@ def destinations():
         raise SystemExit("destinations.yaml has 0 points")
     return d
 
-MIN_POP = 100   # res-8 cells with fewer residents are steppe/industry — no one chooses a flat there
+MIN_POP = 100   # kept for the plan's wording; origins are now the built-up hexes of hexes.geojson
 
 def origins():
-    pop = pd.read_parquet(LAYERS / "pop.parquet")
-    r8 = sorted(set(pop.loc[pop.pop_r8 >= MIN_POP, "h3_r8"]))
-    return [(c, *h3.cell_to_latlng(c)) for c in r8]
+    built = pd.read_parquet(LAYERS / "mask.parquet")
+    cells = sorted(built.loc[built.built == 1, "h3"])
+    return [(c, *h3.cell_to_latlng(c)) for c in cells]
 
 def key():
     k = os.environ.get("TWOGIS_KEY")
@@ -54,12 +55,9 @@ def next_weekday_0830() -> dt.datetime:
 
 def plan():
     o, d = origins(), destinations()
-    pairs = len(o) * len(d)
-    verdict = lambda n: "OK on demo key" if n <= DEMO_CAP else f"exceeds demo cap → 10k pack ({PACK10K_RUB} ₽/мес) or fewer destinations/res 7"
-    print(f"origins (res {RES}, pop ≥ {MIN_POP}): {len(o)} | destinations: {len(d)} | pairs: {pairs}")
-    print(f"with ONE destination (work only): {len(o)} units per API → {'fits the demo key' if len(o) <= DEMO_CAP else 'still over the demo cap'}")
-    print(f"Distance Matrix (car): {pairs} units vs demo cap {DEMO_CAP} → {verdict(pairs)}")
-    print(f"Routing public_transport (pt): {pairs} units vs demo cap {DEMO_CAP} → {verdict(pairs)}")
+    pairs = len(o) * len(d); reqs = -(-len(o) // 10)
+    print(f"origins (res {RES}, built-up): {len(o)} | destinations: {len(d)} | pairs: {pairs}")
+    print(f"Distance Matrix requests per mode (10 origins each): {reqs}; three modes (car 8:30, pt 8:30, car 18:30) = {3*reqs} of {DEMO_CAP}/month")
     print(f"cached: car {len([f for f in CACHE.glob('car_*.json') if not f.name.startswith('car_ev_')])}, pt {len(list(CACHE.glob('pt_*.json')))}, car evening {len(list(CACHE.glob('car_ev_*.json')))}")
     print(f"evening direction (centre → cell, 18:30) costs another {pairs} Distance Matrix units")
 
@@ -71,7 +69,7 @@ def _post(url, k, body, params=None):
             return r.json()
         last = f"HTTP {r.status_code}: {r.text[:160]}"
         if r.status_code in (429, 500, 502, 503, 504):
-            log(f"2GIS retry {attempt + 1}: {last}"); time.sleep(5 * (attempt + 1)); continue
+            log(f"2GIS retry {attempt + 1}: {last}"); time.sleep(65 if r.status_code == 429 else 5 * (attempt + 1)); continue
         raise SystemExit(f"2GIS {url} → {last}")
     raise SystemExit(f"2GIS: retries exhausted, last {last}")
 
@@ -94,7 +92,7 @@ def car():
         for j, (c, _, _) in enumerate(batch):
             (CACHE / f"car_{c}.json").write_text(json.dumps({"h3": c, "sec": by_src.get(j, {}), "t": t.isoformat()}))
         log(f"car: {min(i + B, len(o))}/{len(o)} origins")
-        time.sleep(0.3)
+        time.sleep(DM_PACE_S)
 
 def pt():
     k, o, d = key(), origins(), destinations()
@@ -137,7 +135,7 @@ def car_evening():
         for j, (c, _, _) in enumerate(batch):
             (CACHE / f"car_ev_{c}.json").write_text(json.dumps({"h3": c, "sec": by_tgt.get(j, {}), "t": t.isoformat()}))
         log(f"car evening: {min(i + B, len(o))}/{len(o)}")
-        time.sleep(0.3)
+        time.sleep(DM_PACE_S)
 
 def pt_dm(limit=None):
     """PT travel time via Distance Matrix (transport=public_transport) — a second budget when /public_transport/2.0 returns 429."""
@@ -159,7 +157,7 @@ def pt_dm(limit=None):
         for j, (c, _, _) in enumerate(batch):
             (CACHE / f"pt_{c}.json").write_text(json.dumps({"h3": c, "sec": by_src.get(j, {}), "t": t.isoformat(), "via": "distance_matrix"}))
         done += len(batch); log(f"pt via DM: {done}/{len(todo)}")
-        time.sleep(0.5)
+        time.sleep(DM_PACE_S)
 
 def grid():
     d = destinations(); w = [x.get("weight", 1) for x in d]
@@ -172,10 +170,10 @@ def grid():
             if any(s is None for s in secs): continue
             rows.setdefault(j["h3"], {})[f"{mode}_min"] = round(sum(s / 60 * wi for s, wi in zip(secs, w)) / sum(w), 1)
     g = pd.read_parquet(OUT / "grid.parquet")
-    g["h3_r8"] = [h3.cell_to_parent(c, RES) for c in g.h3]
+    g["h3_key"] = [h3.cell_to_parent(c, RES) if RES < 9 else c for c in g.h3]
     out = g[["h3"]].copy()
     for col in ("car_min", "pt_min", "car_ev_min"):
-        out[col] = g.h3_r8.map({k: v.get(col) for k, v in rows.items()})
+        out[col] = g.h3_key.map({k: v.get(col) for k, v in rows.items()})
     if out.car_ev_min.notna().sum() == 0: out = out.drop(columns=["car_ev_min"])
     out.to_parquet(LAYERS / "reach.parquet", index=False)
     log(f"reach: car coverage {out.car_min.notna().mean():.0%}, pt coverage {out.pt_min.notna().mean():.0%}")
