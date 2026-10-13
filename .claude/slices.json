@@ -700,13 +700,16 @@
         {
           "id": "s8-r06",
           "does": "реальные маршруты у остановок через 2GIS Places по именам OSM-остановок (≈924 запроса) → routes_400m; у Шугыла 340/3к15 ≥ 8 маршрутов",
-          "status": "blocked",
-          "blocker": "owner declined the run on 2026-10-13 (permission prompt); code is in pipeline/stops2gis.py, costs ≈924 of 1000 Places requests",
+          "status": "building",
           "evidence": null,
           "attempts": [
             {
               "what": "OSM-only snapping (pipeline.transit): 77 refs, Шугыла hex 8 stops / 0 routes",
               "result": "OSM lacks the routes; 2GIS Places by name returns them (verified on «Акимат Наурызбайского района»: 22, 26, 44, 90, 118, 136…)"
+            },
+            {
+              "what": "owner approved («да») 2026-10-13; fetch running at 6 s/request",
+              "result": "in progress"
             }
           ]
         },

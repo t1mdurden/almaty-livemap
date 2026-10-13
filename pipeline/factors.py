@@ -7,7 +7,7 @@ FACTORS = {
     "car_min":       {"label": "На авто до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "pt_min":        {"label": "Общественным транспортом до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "car_ev_min":    {"label": "На авто из моих точек домой, будни 18:30", "unit": "мин", "better": "low", "period": "2GIS"},
-    "transit_proxy": {"label": "Маршрутов автобуса/троллейбуса в 400 м", "unit": "маршр.", "better": "high", "period": "OSM, 2026-10"},
+    "transit_proxy": {"label": "Маршрутов автобуса/троллейбуса в 400 м", "unit": "маршр.", "better": "high", "period": "2GIS Places по остановкам OSM, 2026-10"},
     "cat15":         {"label": "Инфраструктура в 1 км", "unit": "из 6", "better": "high", "period": "OSM, 2026-10"},
     # facts: shown in the card, weight 0 unless the user ticks them
     "dtp_300m":      {"label": "ДТП в 300 м за 2023–2025", "unit": "ДТП", "better": "low", "period": "gis.kgp.kz", "default": 0, "fact": True},
