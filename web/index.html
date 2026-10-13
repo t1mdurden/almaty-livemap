@@ -61,7 +61,7 @@
   <div style="display:flex;gap:6px;margin:4px 0 8px;font-size:13px;flex-wrap:wrap;align-items:center">
     <label><input type="radio" name="view" value="places" checked> Микрорайоны</label>
     <label><input type="radio" name="view" value="hex"> Гексы</label>
-    <label title="от зума 14"><input type="checkbox" id="bld" checked> Дома</label>
+    <label title="многоквартирные дома, от зума 14"><input type="checkbox" id="bld" checked> Дома</label>
   </div>
 
   <div style="font-size:12px;color:#555;margin:2px 0 4px"><b>Важность факторов.</b> Тяни вправо — фактор сильнее влияет на балл, влево до нуля — не учитывается.</div>
@@ -192,7 +192,8 @@ async function init(){
     for (const fc of got) if (fc) app.houses.features.push(...fc.features);
     rescoreBuildings();
   };
-  map.on('moveend', loadHouses); loadHouses();
+  const HOUSES = false;   // private houses off: 164k points cost more than they tell; apartments keep footprints
+  if (HOUSES) { map.on('moveend', loadHouses); loadHouses(); }
   map.addSource('places', {type:'geojson', data:places});
   map.addLayer({id:'places', type:'circle', source:'places', maxzoom:15,
     paint:{'circle-color': colorExpr(), 'circle-opacity':0.85, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5,
@@ -292,7 +293,7 @@ async function init(){
   });
   map.on('mouseenter','hex',()=>map.getCanvas().style.cursor='pointer');
   map.on('mouseleave','hex',()=>map.getCanvas().style.cursor='');
-  document.getElementById('status').textContent = `${hexes.features.length} жилых гексов H3 res 9 · ${places.features.length} микрорайонов · ${buildings.features.length} домов`;
+  document.getElementById('status').textContent = `${hexes.features.length} жилых гексов H3 res 9 · ${places.features.length} микрорайонов · ${buildings.features.length} многоквартирных домов`;
   renderTop(); renderPlaces();
   document.getElementById('placeq').addEventListener('input', renderPlaces);
   renderAbout(hexes, places, buildings, factors);

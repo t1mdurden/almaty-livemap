@@ -3,6 +3,7 @@ FACTORS = {
     "metro_min":     {"label": "Пешком до метро", "unit": "мин", "better": "low",  "period": "OSM, 2026-10"},
     "crime_rate":    {"label": "Уличная преступность (кражи, грабежи, хулиганство)", "unit": "на 1000 жит./год", "better": "low", "period": "gis.kgp.kz 2023–2025 / Kontur 2023"},
     "pm25_winter":   {"label": "PM2.5 зимой", "unit": "мкг/м³", "better": "low", "period": "airkaz.org, зимы 2017–2020"},
+    "pm25_recent":   {"label": "PM2.5 за последние 7 дней", "unit": "мкг/м³", "better": "low", "period": "AirGradient + airkaz, часовые снимки"},
     "car_min":       {"label": "На авто до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "pt_min":        {"label": "Общественным транспортом до моих точек, будни 8:30", "unit": "мин", "better": "low", "period": "2GIS"},
     "car_ev_min":    {"label": "На авто из моих точек домой, будни 18:30", "unit": "мин", "better": "low", "period": "2GIS"},

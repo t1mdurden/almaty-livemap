@@ -4,7 +4,7 @@
   <key>Label</key><string>com.almaty-livemap.airlog</string>
   <key>ProgramArguments</key><array>
     <string>/Users/admin/.local/bin/uv</string><string>run</string><string>--directory</string>
-    <string>/Users/admin/Documents/GitHub/almaty-livemap</string><string>python</string><string>-m</string><string>pipeline.air</string><string>log</string>
+    <string>/Users/admin/Documents/GitHub/almaty-livemap</string><string>python</string><string>-m</string><string>pipeline.air</string><string>live</string>
   </array>
   <key>StartInterval</key><integer>3600</integer>
   <key>StandardOutPath</key><string>/tmp/almaty-livemap-airlog.log</string>

@@ -103,6 +103,58 @@ def grid():
     df.to_parquet(LAYERS / "air.parquet", index=False)
     log(f"pm25_winter: {len(sens)} sensors used; coverage {df.pm25_winter.notna().mean():.0%}; min {df.pm25_winter.min()} max {df.pm25_winter.max()}")
 
+AG_URL = "https://api.airgradient.com/public/api/v1/world/locations/measures/current"   # keyless; sensors their owners made public
+
+def live():
+    """Hourly snapshot of every public PM2.5 sensor in the bbox: AirGradient (Almaty Air Initiative, ~140) + airkaz (live ones).
+    Appends to data/raw/air_live.parquet (source, id, name, lat, lon, ts, pm25). Idempotent per (source,id,ts)."""
+    from .common import BBOX
+    s_, w, n, e = BBOX
+    rows = []
+    try:
+        for x in requests.get(AG_URL, headers={"User-Agent": UA}, timeout=120).json():
+            la, lo = x.get("latitude"), x.get("longitude")
+            if la is None or lo is None or not (s_ <= la <= n and w <= lo <= e) or x.get("offline") or x.get("pm02") is None: continue
+            rows.append({"source": "airgradient", "id": str(x["locationId"]), "name": x.get("publicLocationName"), "lat": la, "lon": lo,
+                         "ts": pd.Timestamp(x["timestamp"]).floor("h"), "pm25": float(x["pm02"])})
+    except Exception as ex:
+        log("airgradient failed:", ex)
+    try:
+        for a in page_json():
+            fresh = pd.to_datetime(a.get("date"), errors="coerce")
+            if not str(a.get("city", "")).startswith("Алматы") or a.get("hour") != "now" or pd.isna(fresh) or fresh < pd.Timestamp.now() - pd.Timedelta(hours=3): continue
+            v = a.get("pm25")
+            if v in (None, "", "0"): continue
+            rows.append({"source": "airkaz", "id": str(a["id"]), "name": a.get("name"), "lat": float(a["lat"]), "lon": float(a["lng"]),
+                         "ts": (fresh - pd.Timedelta(hours=5)).tz_localize("UTC").floor("h"), "pm25": float(v)})
+    except Exception as ex:
+        log("airkaz failed:", ex)
+    new = pd.DataFrame(rows)
+    f = RAW / "air_live.parquet"
+    old = pd.read_parquet(f) if f.exists() else pd.DataFrame(columns=new.columns)
+    allr = pd.concat([old, new]).drop_duplicates(["source", "id", "ts"])
+    allr.to_parquet(f, index=False)
+    log(f"air live: +{len(allr) - len(old)} rows ({new.source.value_counts().to_dict() if len(new) else {}}), {len(allr)} total, span {allr.ts.min()}…{allr.ts.max()}")
+
+def now_layer(days=7):
+    """Mean PM2.5 of the last `days` days per sensor -> IDW onto hexes -> layers/air_now.parquet (pm25_recent). Needs ≥ 24 h of log to be meaningful."""
+    f = RAW / "air_live.parquet"
+    if not f.exists(): raise SystemExit("no air_live.parquet yet — run `air live` first")
+    d = pd.read_parquet(f); d["ts"] = pd.to_datetime(d.ts, utc=True)
+    d = d[d.ts >= d.ts.max() - pd.Timedelta(days=days)]
+    sens = d.groupby(["source", "id"]).agg(lat=("lat", "first"), lon=("lon", "first"), pm25=("pm25", "mean"), hours=("ts", "nunique")).reset_index()
+    sens = sens[sens.hours >= max(1, min(24, d.ts.nunique() // 2))]
+    g = pd.read_parquet(OUT / "grid.parquet"); pts = list(zip(sens.lat, sens.lon, sens.pm25)); out = []
+    for r in g.itertuples():
+        ds = sorted(((_hav(r.lat, r.lon, la, lo), v) for la, lo, v in pts))[:IDW_K]
+        ds = [(dd, v) for dd, v in ds if dd <= IDW_RADIUS_M]
+        if not ds: out.append({"h3": r.h3, "pm25_recent": None}); continue
+        w = [1 / max(dd, 1) ** IDW_P for dd, _ in ds]; out.append({"h3": r.h3, "pm25_recent": round(sum(wi * v for wi, (_, v) in zip(w, ds)) / sum(w), 1)})
+    df = pd.DataFrame(out); df.to_parquet(LAYERS / "air_now.parquet", index=False)
+    meta = {"sensors": int(len(sens)), "hours": int(d.ts.nunique()), "from": str(d.ts.min()), "to": str(d.ts.max())}
+    (OUT / "air_now_meta.json").write_text(json.dumps(meta))
+    log(f"pm25_recent: {len(sens)} sensors, {meta['hours']} hourly snapshots, coverage {df.pm25_recent.notna().mean():.0%}, median {df.pm25_recent.median()}")
+
 def log_now():
     live = pd.DataFrame(page_json())
     fresh = pd.to_datetime(live.date, errors="coerce") >= pd.Timestamp.now() - pd.Timedelta(days=2)
@@ -118,4 +170,4 @@ def log_now():
 
 if __name__ == "__main__":
     import urllib3; urllib3.disable_warnings()
-    {"sensors": sensors, "history": history, "grid": grid, "log": log_now}[sys.argv[1] if len(sys.argv) > 1 else "sensors"]()
+    {"sensors": sensors, "history": history, "grid": grid, "log": log_now, "live": live, "now": now_layer}[sys.argv[1] if len(sys.argv) > 1 else "sensors"]()
