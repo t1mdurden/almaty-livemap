@@ -2,7 +2,7 @@
 
 **Goal.** Личная карта Алматы на гексах H3 с ползунками весов факторов (docs/prd.md). Ledger: `.claude/slices.json` (6 слайсов). Spine: compound-v:get-shit-done.
 
-**Next (2026-10-13 04:00).** s8-r06 — `pipeline.stops2gis fetch` идёт в фоне (≈924 запросов Places по 6 с); после него `stops2gis grid && build && places && buildings`, коммит. Остальное закрыто.
+**Next (2026-10-13 06:00).** Всё автоматическое закрыто и опубликовано (https://t1mdurden.github.io/almaty-livemap/web/). Открыты только прогулки владельца (s6-r04, s7-r05, s8-r07). После 11.11 (новый месяц 2GIS): дозамерить 29+736 ячеек авто/вечер (`reach car`, `reach car-evening`) и свои точки назначения.
 
 **Было: Next.** Публикацию он отложил («пока не делай github page»). Карта живёт локально: `python3 -m http.server 8791 --directory .` → http://localhost:8791/web/. Открытые строки: s6-r03 (Pages, отложено владельцем) и s6-r04 (его прогулка по карте).
 

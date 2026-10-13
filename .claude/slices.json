@@ -700,8 +700,10 @@
         {
           "id": "s8-r06",
           "does": "реальные маршруты у остановок через 2GIS Places по именам OSM-остановок (≈924 запроса) → routes_400m; у Шугыла 340/3к15 ≥ 8 маршрутов",
-          "status": "building",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "pipeline.stops2gis fetch → 911 of 924 stop names answered (Places demo, 6 s pace, 0 rate-limit hits); grid → populated hexes routes_400m median 8, ≥1 route 83% (was 1 / 60% on OSM); Шугыла 340/3к15 hex: 13 routes — 14, 26, 27, 44, 55, 61, 78, 118, 136, 137, 139, 239, 244 — matching the owner’s 2GIS screenshots (22/26/44/90/118 and 14/26/27/44/55); route list shown in the card"
+          },
           "attempts": [
             {
               "what": "OSM-only snapping (pipeline.transit): 77 refs, Шугыла hex 8 stops / 0 routes",
@@ -711,7 +713,10 @@
               "what": "owner approved («да») 2026-10-13; fetch running at 6 s/request",
               "result": "in progress"
             }
-          ]
+          ],
+          "discharge": {
+            "rerun": "uv run python -m pipeline.stops2gis grid && uv run python -m pipeline.build"
+          }
         },
         {
           "id": "s8-r07",
