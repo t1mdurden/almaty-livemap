@@ -726,6 +726,58 @@
           "is_check": true,
           "evidence": null,
           "attempts": []
+        },
+        {
+          "id": "s8-r08",
+          "does": "глубже про ОТ: на ячейку — маршрутов до центра без пересадки (pt_direct, фактор), пешком до остановки (факт), троллейбусы, маршруты в 250/400 м; в карточке блок «Общественный транспорт» со списком маршрутов",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "stops2gis grid → 35 маршрутов обслуживают центр; по жилым ячейкам pt_direct медиана 2, ≥1 у 65 %, до остановки медиана 5.9 мин; Самал-1: 6 прямых (5, 21, 62, 95, 128, 130), Орбита-1: 5, Шугыла: 2 (44, 118); Pages показывает 9 ползунков"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.stops2gis grid && uv run python -m pipeline.build"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s8-r09",
+          "does": "метро на карте: линия и 12 станций с подписями Ⓜ",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "pipeline.metro_map → metro.geojson: 12 stations, 4 line segments (OSM relations 5555280/7734271); на Pages слои metro-line и metro-st присутствуют"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.metro_map"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s8-r10",
+          "does": "многоквартирные дома, помеченные в OSM как residential/yes с ≥3 этажами, тоже рисуются и оцениваются (владелец заметил пропуски после отключения частных домов)",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "apartments_extra.json: 1297 контуров; buildings.geojson 6894 → 8119 домов"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.buildings"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s8-r11",
+          "does": "доезд измерен для всех жилых ячеек вторым ключом (TWOGIS_KEY2 через окружение; пайплайн переключается при блокировке первого)",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "reach grid → car 2941 measured / 0 empty, evening 2941 / 0, pt 2903 + 30 est; check-s4 PASSED"
+          },
+          "discharge": {
+            "rerun": "bash scripts/check-s4.sh"
+          },
+          "attempts": []
         }
       ]
     }
