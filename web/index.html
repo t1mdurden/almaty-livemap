@@ -266,7 +266,7 @@ async function init(){
       const raw = e.features[0].properties;
       if (L === 'places') { openCard(e.lngLat, raw.name, raw); return; }
       const h = hexIndex[raw.h3] || {};
-      const p = {...h, metro_min: raw.mm, metro_min_p: raw.mp, zhk: raw.zhk, zcls: raw.zcls, zdev: raw.zdev, zpm: raw.zpm};
+      const p = {...h, metro_min: raw.mm, metro_min_p: raw.mp, zhk: raw.zhk, zcls: raw.zcls, zdev: raw.zdev, zpm: raw.zpm, lp: raw.lp, ln: raw.ln};
       openCard(e.lngLat, (raw.a || raw.n || (L==='bld' ? 'Многоквартирный дом' : 'Дом')) + (raw.lv ? ' · '+raw.lv+' эт.' : ''), p);
     });
     map.on('mouseenter', L, ()=>map.getCanvas().style.cursor='pointer');
@@ -284,7 +284,9 @@ async function init(){
       return `<tr><td title="${m.label}">${short}</td><td class="n">${has? (+raw).toFixed(raw>=100?0:1)+' '+m.unit : '—'}</td><td class="n">${has? Math.round(pct*100)+'%':'—'}</td><td class="n">${has&&w>0? '+'+contrib : (w>0?'—':'выкл')}</td></tr>`;
     }).join('');
     const facts = Object.entries(factors).filter(([k,m])=>m.fact && !(app.weights[k]>0) && p[k]!==null && p[k]!==undefined).map(([k,m])=>`<span style="display:inline-block;background:#f1f3f5;border-radius:6px;padding:2px 6px;margin:3px 4px 0 0">${SHORT[k]||m.label}: <b>${k.startsWith('price')? Math.round(p[k]/1000)+' тыс ₸/м²' : (+p[k]).toFixed(p[k]>=100?0:1)+' '+m.unit}</b></span>`).join('');
-    const zhk = p.zhk ? `<div style="margin-top:4px">ЖК <b>${p.zhk}</b>${p.zcls?' · '+p.zcls:''}${p.zdev?' · '+p.zdev:''}${p.zpm?' · ~'+Math.round(p.zpm/1000)+' тыс ₸/м² на вторичке':''}</div>` : '';
+    const zhk = (p.zhk ? `<div style="margin-top:4px">ЖК <b>${p.zhk}</b>${p.zcls?' · '+p.zcls:''}${p.zdev?' · '+p.zdev:''}${p.zpm?' · ~'+Math.round(p.zpm/1000)+' тыс ₸/м² на вторичке':''}</div>` : '')
+      + (p.lp ? `<div style="margin-top:2px">Объявления по этому дому: <b>~${Math.round(p.lp/1000)} тыс ₸/м²</b> (${p.ln} шт., krisha)</div>` : '')
+      + ((p.car_min_est||p.car_ev_min_est) ? `<div style="margin-top:2px;font-size:11px;color:#8a4b00">время на авто здесь — оценка по соседним ячейкам (лимит 2GIS на месяц исчерпан)</div>` : '');
     return `${zhk}<table><tr><th></th><th>значение</th><th>лучше, чем</th><th>баллов</th></tr>${rows}</table>${facts?'<div style="margin-top:6px">'+facts+'</div>':''}<div style="font-size:11px;color:#666;margin-top:6px">«лучше, чем» — доля жилых гексов города, где этот показатель хуже. «баллов» — вклад в итоговый балл с учётом твоих весов; сумма = балл.</div>`;
   };
   map.on('click', 'hex', e=>{ openCard(e.lngLat, 'Гекс', e.features[0].properties); });

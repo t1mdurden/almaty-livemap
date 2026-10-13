@@ -2,7 +2,9 @@
 
 **Goal.** Личная карта Алматы на гексах H3 с ползунками весов факторов (docs/prd.md). Ledger: `.claude/slices.json` (6 слайсов). Spine: compound-v:get-shit-done.
 
-**Next.** Публикацию он отложил («пока не делай github page»). Карта живёт локально: `python3 -m http.server 8791 --directory .` → http://localhost:8791/web/. Открытые строки: s6-r03 (Pages, отложено владельцем) и s6-r04 (его прогулка по карте).
+**Next (2026-10-13 04:00).** s8-r06 — `pipeline.stops2gis fetch` идёт в фоне (≈924 запросов Places по 6 с); после него `stops2gis grid && build && places && buildings`, коммит. Остальное закрыто.
+
+**Было: Next.** Публикацию он отложил («пока не делай github page»). Карта живёт локально: `python3 -m http.server 8791 --directory .` → http://localhost:8791/web/. Открытые строки: s6-r03 (Pages, отложено владельцем) и s6-r04 (его прогулка по карте).
 
 **Proof commands.** `bash scripts/check-s1.sh`, `check-s2.sh`, `check-s3.sh` → PASSED 2026-10-12. `check-s4.sh` → exit 2 BLOCKED (нет ключа). `check-s6.sh` → локальная часть.
 
@@ -11,6 +13,8 @@
 **Done 2026-10-13.** s4 (2GIS доезд), цены krisha, маска жилой застройки, микрорайоны кружками + рейтинг, дома с зума 14, подписи. Публикация отложена владельцем.
 
 **Done 2026-10-12.** Источники проверены (docs/research/sources.md). Слои: metro_min, crime_rate (84 624 точки + Kontur), pm25_winter (22 датчика), transit_proxy (OSM), district (8 районов). Страница: MapLibre, ползунки, попап, Топ-20. Код 2GIS написан, не запускался.
+
+**Лимиты 2GIS (из писем, Gmail подключён):** Distance Matrix 1000 запросов/мес (исчерпан 13.10 01:29 UTC, вернётся 11.11), 10/мин; Routing 50/день, 5/мин; Places 1000/мес. Доезд на авто измерен для 72 % жилых ячеек, остальные — оценка по соседям/старому прогону (помечено).
 
 **Needs owner (руками).**
 1. Пройтись по карте на localhost:8791/web/, подвигать ползунки, открыть Топ-20 — его слово закрывает s6-r04.

@@ -46,11 +46,15 @@ def crawl(max_pages=1000):
     df.to_parquet(RAW / "listings.parquet", index=False)
     log(f"listings: {len(df)} unique cards")
 
-ABBR = [(r"\bпросп(?:ект|\.)?\b", ""), (r"\bпр-т\b", ""), (r"\bул(?:ица|\.)?\b", ""), (r"\bбульвар\b|\bб-р\b", ""), (r"\bмкр\.?\b|\bмикрорайон\b", "мкр"), (r"\bшоссе\b", ""), (r"\bпер(?:еулок|\.)?\b", ""), (r"[«»\"']", ""), (r"\s+", " ")]
+ABBR = [(r"\bпросп(?:ект|\.)?\b", ""), (r"\bпр-т\b", ""), (r"\bул(?:ица|\.)?\b", ""), (r"\bбульвар\b|\bб-р\b", ""), (r"\bмкр\.?\b|\bмикрорайон\b|\bмассив\b", ""),
+        (r"\bшоссе\b", ""), (r"\bпер(?:еулок|\.)?\b", ""), (r"\bдаңғылы\b|\bкөшесі\b|\bшағын ауданы\b", ""), (r"№\s*", ""), (r"[«»\"']", ""), (r"-й\b|-я\b|-е\b", ""), (r"\s+", " ")]
 def norm(s):
     s = (s or "").lower().replace("ё", "е")
     for a, b in ABBR: s = re.sub(a, b, s)
-    return s.strip(" ,.")
+    return s.strip(" ,.-")
+def norm_house(h):
+    h = (h or "").lower().replace(" ", "").replace("корпус", "к").replace("к.", "к")
+    return re.sub(r"[^\w/]", "", h)
 
 def grid():
     df = pd.read_parquet(RAW / "listings.parquet")
@@ -60,16 +64,20 @@ def grid():
     for e in bl:
         t = e.get("tags", {}); c = e.get("center")
         if not c or not t.get("addr:street") or not t.get("addr:housenumber"): continue
-        key = norm(t["addr:street"]) + " " + norm(t["addr:housenumber"])
+        key = norm(t["addr:street"]) + " " + norm_house(t["addr:housenumber"])
         idx.setdefault(key, []).append((c["lat"], c["lon"], e["id"]))
     log(f"OSM addressed buildings: {len(idx)} distinct addresses")
+    HOUSE = re.compile(r"^(.*?)[\s,]+(\d+[а-яa-z]?(?:\s*(?:/|к\.?|корпус\s*)\s*\d+[а-яa-z]?)?)$", re.I)
     def match(addr):
         if not addr: return None
+        addr = addr.split(" — ")[0]                       # krisha appends a free-text comment after a dash
         parts = [p.strip() for p in addr.split(",")]
-        for cand in parts[::-1]:                       # the last comma part is usually "street house"
-            m = re.match(r"(.+?)\s+(\d+[а-яa-z]?(?:/\d+)?)$", cand.strip(), re.I)
-            if not m: continue
-            key = norm(m.group(1)) + " " + norm(m.group(2))
+        cands = parts[1:] if len(parts) > 1 else parts    # drop the district
+        tries = cands[::-1] + [" ".join(cands[-2:])] if len(cands) >= 2 else cands
+        for cand in tries:
+            m = HOUSE.match(cand.strip())
+            if not m or not m.group(1).strip(): continue
+            key = norm(m.group(1)) + " " + norm_house(m.group(2))
             if key in idx: return idx[key][0]
         return None
     hits = df.address.map(match)

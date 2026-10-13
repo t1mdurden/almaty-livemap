@@ -8,6 +8,8 @@ import h3, numpy as np, pandas as pd
 from .common import RAW, OUT, log
 from .metro import haversine_m, WALK_M_PER_MIN, DETOUR
 
+LISTING = json.loads((OUT / "listing_prices.json").read_text()) if (OUT / "listing_prices.json").exists() else {}
+
 def main():
     hexes = {f["properties"]["h3"]: f["properties"] for f in json.load(open(OUT / "hexes.geojson"))["features"]}
     st = pd.read_parquet(RAW / "metro_stations.parquet")
@@ -23,6 +25,8 @@ def main():
         t = e.get("tags", {})
         m, mp = metro(lat, lon)
         out = {"h3": c, "mm": m, "mp": mp}
+        lp = LISTING.get(str(e["id"]))
+        if lp: out["lp"] = lp["p"]; out["ln"] = lp["n"]
         addr = " ".join(x for x in (t.get("addr:street"), t.get("addr:housenumber")) if x)
         if addr: out["a"] = addr
         if t.get("building:levels"): out["lv"] = t["building:levels"]

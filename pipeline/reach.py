@@ -175,6 +175,45 @@ def grid():
     for col in ("car_min", "pt_min", "car_ev_min"):
         out[col] = g.h3_key.map({k: v.get(col) for k, v in rows.items()})
     if out.car_ev_min.notna().sum() == 0: out = out.drop(columns=["car_ev_min"])
+    # the demo key's monthly cap can stop a run short: fill a built hex with no value from measured neighbours (≤3 rings) and flag it
+    built = set(pd.read_parquet(LAYERS / "mask.parquet").query("built == 1").h3)
+    for col in [c for c in ("car_min", "pt_min", "car_ev_min") if c in out.columns]:
+        have = dict(zip(out.h3, out[col])); est = {}
+        for c in built:
+            if pd.notna(have.get(c)): continue
+            for ring in (1, 2, 3):
+                vals = [have[n] for n in h3.grid_ring(c, ring) if pd.notna(have.get(n))]
+                if len(vals) >= 2: est[c] = round(sum(vals) / len(vals), 1); break
+        # second fallback: the res-8 run from 12 Oct (destination 1.6 km east) rescaled by a linear fit on hexes that have both;
+        # for the evening layer, a fit evening ~ morning on hexes that have both
+        import numpy as np
+        if col in ("car_min", "pt_min"):
+            old = {}
+            for f in (RAW / "reach").glob(f"{'car' if col == 'car_min' else 'pt'}_*.json"):
+                j = json.loads(f.read_text()); v = j["sec"].get("0")
+                if v: old[j["h3"]] = v / 60
+            pairs = [(old[h3.cell_to_parent(c, 8)], have[c]) for c in built if pd.notna(have.get(c)) and h3.cell_to_parent(c, 8) in old]
+            if len(pairs) > 50:
+                x, y = np.array(pairs).T; b, a = np.polyfit(x, y, 1)
+                n0 = len(est)
+                for c in built:
+                    if c in est or pd.notna(have.get(c)): continue
+                    p8 = h3.cell_to_parent(c, 8)
+                    if p8 in old: est[c] = round(a + b * old[p8], 1)
+                log(f"{col}: res-8 fallback fit y = {a:.1f} + {b:.2f}x on {len(pairs)} hexes, filled {len(est) - n0} more")
+        if col == "car_ev_min":
+            morning = dict(zip(out.h3, out["car_min"]))
+            pairs = [(morning[c], have[c]) for c in built if pd.notna(have.get(c)) and pd.notna(morning.get(c))]
+            if len(pairs) > 50:
+                x, y = np.array(pairs).T; b, a = np.polyfit(x, y, 1)
+                n0 = len(est)
+                for c in built:
+                    if c in est or pd.notna(have.get(c)): continue
+                    if pd.notna(morning.get(c)): est[c] = round(a + b * morning[c], 1)
+                log(f"{col}: evening ~ morning fit y = {a:.1f} + {b:.2f}x on {len(pairs)} hexes, filled {len(est) - n0} more")
+        out[col + "_est"] = out.h3.map(lambda c: 1 if c in est else 0)
+        out[col] = out.apply(lambda r: est.get(r.h3, r[col]), axis=1)
+        log(f"{col}: measured {sum(1 for c in built if pd.notna(have.get(c)))}, estimated from neighbours {len(est)}, still empty {sum(1 for c in built if c not in est and pd.isna(have.get(c)))} of {len(built)} built hexes")
     out.to_parquet(LAYERS / "reach.parquet", index=False)
     log(f"reach: car coverage {out.car_min.notna().mean():.0%}, pt coverage {out.pt_min.notna().mean():.0%}")
 

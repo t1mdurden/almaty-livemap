@@ -662,26 +662,40 @@
         {
           "id": "s8-r04",
           "does": "`pipeline.listings crawl/grid`: все карточки продажи по 8 районам → адрес → OSM-здание → price_m2_hex (≥3 карточек в кольце) и цена по дому (≥2 карточек)",
-          "status": "building",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "pipeline.listings crawl → 41 951 unique cards from 2118 district pages (2026-10-13); grid → address match 5 800 cards (14%), 1 454 hexes with ≥3 priced cards in a ring, 1 006 buildings with ≥2 cards; check-s8: price_m2_hex coverage 47% of built hexes; card shows «Объявления по этому дому: ~N тыс ₸/м²»"
+          },
           "attempts": [
             {
               "what": "crawl started 2026-10-13 (2 s/page), 811 of ~2150 pages cached at last check",
               "result": "in progress"
             }
-          ]
+          ],
+          "discharge": {
+            "rerun": "uv run python -m pipeline.listings grid && bash scripts/check-s8.sh"
+          }
         },
         {
           "id": "s8-r05",
           "does": "доезд от Абая/Байтурсынова для каждой жилой ячейки (2942): car 8:30, pt 8:30, car 18:30 через Distance Matrix с паузой 6.5 с; check-s4 проходит с новой точкой",
-          "status": "building",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "Distance Matrix at res 9 from Абая/Байтурсынова: car measured 2129/2942 built hexes, pt 2903, evening 1900; the demo key hit its 1000-requests-per-month cap at 01:29 UTC (Gmail: «Access of 2GIS API Keys to the Service Is Blocked», period month). Gaps filled from neighbours or the res-8 run rescaled (fit y = -1.0 + 0.99x on 2075 hexes) and evening ~ morning (y = 2.4 + 1.16x), flagged *_est and labelled in the card. bash scripts/check-s4.sh → coverage car 99% pt 100%; car_min at centre 1.4; Kalkaman 67.1 > Alatau 34.5; PASSED"
+          },
           "attempts": [
             {
               "what": "car done (2130 cache files → 213 requests), pt-dm 1120/2942 at last check; evening queued",
               "result": "in progress; first attempt at 0.3 s pace hit the 10/min demo cap (429)"
+            },
+            {
+              "what": "paced to 6.5 s/request after the 10/min block",
+              "result": "ran until the monthly cap; 29 built hexes remain empty"
             }
-          ]
+          ],
+          "discharge": {
+            "rerun": "bash scripts/check-s4.sh"
+          }
         },
         {
           "id": "s8-r06",
