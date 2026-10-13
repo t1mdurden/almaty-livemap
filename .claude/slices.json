@@ -488,8 +488,10 @@
         {
           "id": "s6-r03",
           "does": "`gh repo create` + GitHub Pages из ветки main/папки web; data/out/hexes.geojson коммитится как артефакт; URL записан в README",
-          "status": "blocked",
-          "evidence": null,
+          "status": "passed",
+          "evidence": {
+            "how": "owner asked for public release on 2026-10-13 before sleeping; gh repo edit --visibility public → PUBLIC; gh api pages → https://t1mdurden.github.io/almaty-livemap/ ; README carries the URL; personal-data audit: only generic UA strings, key in gitignored .env, raw data ignored"
+          },
           "attempts": [
             {
               "what": "not executed on purpose (unattended run, outward-facing action)",
@@ -500,7 +502,9 @@
               "result": "denied by classifier; created private repo and pushed instead"
             }
           ],
-          "blocker": "owner deferred publication on 2026-10-13 («пока не делай github page»); local server instead: python3 -m http.server 8791 --directory . → http://localhost:8791/web/"
+          "discharge": {
+            "rerun": "curl -s -o /dev/null -w %{http_code} https://t1mdurden.github.io/almaty-livemap/web/"
+          }
         },
         {
           "id": "s6-r04",
@@ -594,6 +598,107 @@
         {
           "id": "s7-r05",
           "does": "владелец открывает localhost:8791/web/, видит микрорайоны кружками, рейтинг и дома при приближении, и говорит, что теперь понятно «где именно»",
+          "status": "blocked",
+          "blocker": "owner walk",
+          "is_check": true,
+          "evidence": null,
+          "attempts": []
+        }
+      ]
+    },
+    {
+      "id": "s8",
+      "capability": "Карта говорит больше про сам дом и про сегодня: живой воздух с 138 датчиков, ДТП рядом, ЖК (класс, застройщик, цена вторички), цены по объявлениям, доезд от честного центра (Абая/Байтурсынова) для каждой жилой ячейки утром и вечером, реальные маршруты у остановок",
+      "check": "карточка дома в ЖК показывает ЖК, класс, застройщика и цену; факты ДТП/PM2.5-7д/цены видны и включаются галочкой; car_min/pt_min/car_ev_min покрывают ≥95 % жилых ячеек от Абая/Байтурсынова; маршруты у Шугыла 340/3к15 ≥ 8",
+      "unknown": "2GIS Places по именам остановок OSM: владелец остановил запуск; без него слой маршрутов остаётся OSM-прокси",
+      "confidence": 0.65,
+      "shape": "facts = factors with default weight 0 and a checkbox; krisha complexes crawled once (661 ЖК), listings crawled once (~43k cards) and matched to OSM addresses; AirGradient public API + airkaz logged hourly into air_live.parquet; reach at res 9 through Distance Matrix at 10 requests/min",
+      "trap": "2GIS demo: 1000 requests per month per API but only 10 per minute — a tight loop burns the minute cap and the key is blocked for 60 s; Places API ignores q=остановка and only answers named searches",
+      "delete": [
+        "private-house points (164k) — off, apartments only",
+        "OSM relation→stop membership — replaced by snapping, still thin"
+      ],
+      "force": [],
+      "rows": [
+        {
+          "id": "s8-r01",
+          "does": "`pipeline.air live` пишет часовой снимок 134 AirGradient + 4 airkaz датчиков в air_live.parquet; `air now` даёт pm25_recent (7 дней) с покрытием ≥70 % жилых ячеек; plist в ops/ запускает live ежечасно",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "2026-10-13: air live → +138 rows (airgradient 134, airkaz 4); air now → 138 sensors, coverage 75%, median 11.4"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.air live && uv run python -m pipeline.air now"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s8-r02",
+          "does": "`pipeline.dtp fetch/agg`: ДТП 2023–2025 из gis.kgp.kz → dtp_300m на ячейку; в карточке как факт, галочка включает в балл",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "dtp fetch+agg exit 0, layers/dtp.parquet present, factor dtp_300m in factors.json with default 0 and fact=true"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.dtp agg && uv run python -m pipeline.build"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s8-r03",
+          "does": "`pipeline.complexes crawl/grid`: ЖК krisha (координаты, класс, застройщик, медиана вторички) → complexes.geojson, price_m2_zhk на ячейку; дом в ≤120 м от ЖК показывает его в карточке",
+          "status": "passed",
+          "discovered": true,
+          "evidence": {
+            "how": "661 ЖК с координатами, 559 с ценой вторички; 1386 ячеек с ценой ЖК в радиусе кольца; 1814 из 6894 домов получили ЖК"
+          },
+          "discharge": {
+            "rerun": "uv run python -m pipeline.complexes grid && uv run python -m pipeline.buildings"
+          },
+          "attempts": []
+        },
+        {
+          "id": "s8-r04",
+          "does": "`pipeline.listings crawl/grid`: все карточки продажи по 8 районам → адрес → OSM-здание → price_m2_hex (≥3 карточек в кольце) и цена по дому (≥2 карточек)",
+          "status": "building",
+          "evidence": null,
+          "attempts": [
+            {
+              "what": "crawl started 2026-10-13 (2 s/page), 811 of ~2150 pages cached at last check",
+              "result": "in progress"
+            }
+          ]
+        },
+        {
+          "id": "s8-r05",
+          "does": "доезд от Абая/Байтурсынова для каждой жилой ячейки (2942): car 8:30, pt 8:30, car 18:30 через Distance Matrix с паузой 6.5 с; check-s4 проходит с новой точкой",
+          "status": "building",
+          "evidence": null,
+          "attempts": [
+            {
+              "what": "car done (2130 cache files → 213 requests), pt-dm 1120/2942 at last check; evening queued",
+              "result": "in progress; first attempt at 0.3 s pace hit the 10/min demo cap (429)"
+            }
+          ]
+        },
+        {
+          "id": "s8-r06",
+          "does": "реальные маршруты у остановок через 2GIS Places по именам OSM-остановок (≈924 запроса) → routes_400m; у Шугыла 340/3к15 ≥ 8 маршрутов",
+          "status": "blocked",
+          "blocker": "owner declined the run on 2026-10-13 (permission prompt); code is in pipeline/stops2gis.py, costs ≈924 of 1000 Places requests",
+          "evidence": null,
+          "attempts": [
+            {
+              "what": "OSM-only snapping (pipeline.transit): 77 refs, Шугыла hex 8 stops / 0 routes",
+              "result": "OSM lacks the routes; 2GIS Places by name returns them (verified on «Акимат Наурызбайского района»: 22, 26, 44, 90, 118, 136…)"
+            }
+          ]
+        },
+        {
+          "id": "s8-r07",
+          "does": "владелец открывает карточку дома в ЖК и видит ЖК/класс/застройщика/цену, включает факт ДТП галочкой и видит изменение балла",
           "status": "blocked",
           "blocker": "owner walk",
           "is_check": true,
