@@ -26,7 +26,7 @@
   #cmp td:first-child,#cmp th:first-child{text-align:left;padding-left:0;width:32%}
   #cmp th{font-weight:600}
   #cmp .win{background:#e8f5e9;font-weight:600}
-  @media (max-width:900px){#cmp{position:static;width:auto;max-width:none;margin:0 0 8px}}
+  @media (max-width:1000px){#cmp{left:12px;right:12px;width:auto;max-width:none;top:56px} body.cmp-open #panel{display:none}}
   .tab{border:0;background:none;padding:6px 10px;font:inherit;font-size:13px;color:#666;cursor:pointer;border-bottom:2px solid transparent}
   .tab.on{color:#1b1b1b;border-bottom-color:#1a4d8f;font-weight:600}
   #tab-about h2{font-size:13px;margin:12px 0 4px}
@@ -203,11 +203,20 @@ async function init(){
   document.querySelectorAll('input[name=view]').forEach(r=>r.addEventListener('change', e=>app.setView(e.target.value)));
   document.getElementById('bld').addEventListener('change', e=>{ for (const L of ['bld','houses']) map.setLayoutProperty(L,'visibility', e.target.checked?'visible':'none'); });
   // --- compare mode: the next two clicks pick A and B, then a side-by-side table that follows the sliders
-  app.cmp = {on:false, pts:[]};
+  app.cmp = {on:false, pts:[], markers:[]};
   const cmpbtn = document.getElementById('cmpbtn'), cmphint = document.getElementById('cmphint'), cmpEl = document.getElementById('cmp');
+  const cmpReset = () => {                    // markers off the map, panel closed, button back to normal
+    for (const m of app.cmp.markers) m.remove();
+    app.cmp = {on:false, pts:[], markers:[]};
+    cmpEl.style.display='none'; cmphint.style.display='none';
+    cmpbtn.textContent = '⇄ Сравнить две точки'; cmpbtn.style.background='#fff'; cmpbtn.style.color='#1a4d8f';
+    document.body.classList.remove('cmp-open');
+  };
   cmpbtn.addEventListener('click', ()=>{
-    app.cmp = {on:true, pts:[]}; cmpEl.style.display='none';
-    cmphint.style.display=''; cmphint.textContent = 'Режим сравнения: кликни первую точку на карте (микрорайон, дом или гекс)';
+    if (app.cmp.on || app.cmp.pts.length) { cmpReset(); return; }      // second press = cancel
+    cmpReset(); app.cmp.on = true;
+    cmpbtn.textContent = '✕ Отменить сравнение'; cmpbtn.style.background='#1a4d8f'; cmpbtn.style.color='#fff';
+    cmphint.style.display=''; cmphint.textContent = 'Кликни первую точку на карте — микрорайон, дом или гекс';
   });
   window.renderCompare = () => {
     const [A, B] = app.cmp.pts; if (!A || !B) return;
@@ -225,13 +234,13 @@ async function init(){
       <tr><td>Район · цена м²</td><td>${(A.p.district||'').replace(' район','')} · ${price(A.p)}</td><td>${(B.p.district||'').replace(' район','')} · ${price(B.p)}</td></tr>
       ${rows}</table>
       <div style="color:#666;margin-top:6px">Зелёным — где показатель лучше. Таблица пересчитывается при движении ползунков. <a href="#" id="cmpagain" style="color:#1a4d8f">Выбрать другие точки</a></div>`;
-    cmpEl.style.display='';
-    document.getElementById('cmpclose').onclick = ()=>{ cmpEl.style.display='none'; app.cmp={on:false,pts:[]}; };
-    document.getElementById('cmpagain').onclick = (e)=>{ e.preventDefault(); cmpbtn.click(); };
+    cmpEl.style.display=''; document.body.classList.add('cmp-open');
+    document.getElementById('cmpclose').onclick = cmpReset;
+    document.getElementById('cmpagain').onclick = (e)=>{ e.preventDefault(); cmpReset(); cmpbtn.click(); };
   };
   const pickForCompare = (lngLat, title, p) => {
     app.cmp.pts.push({title, p, lngLat});
-    new maplibregl.Marker({color: app.cmp.pts.length===1 ? '#1a4d8f' : '#c62828'}).setLngLat(lngLat).addTo(map);
+    app.cmp.markers.push(new maplibregl.Marker({color: app.cmp.pts.length===1 ? '#1a4d8f' : '#c62828'}).setLngLat(lngLat).addTo(map));
     if (app.cmp.pts.length === 1) { cmphint.textContent = `A: ${title}. Теперь кликни вторую точку`; return true; }
     app.cmp.on = false; cmphint.style.display='none'; renderCompare(); return true;
   };
